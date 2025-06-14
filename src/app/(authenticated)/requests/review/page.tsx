@@ -17,7 +17,7 @@ import {
 
 
 export default function ReviewRequestsPage() {
-  const { currentUser, trainingRequests } = useAuth();
+  const { currentUser, trainingRequests, users } = useAuth(); // Added 'users'
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'costHigh' | 'costLow'>('newest');
 
@@ -26,9 +26,18 @@ export default function ReviewRequestsPage() {
   const requestsForReview = useMemo(() => {
     if (!currentUser || !allowedReviewRoles.includes(currentUser.role)) return [];
 
-    let filtered = trainingRequests.filter(req => 
-        req.currentApprovalStep === currentUser.role && req.status === 'pending'
-    );
+    let filtered = trainingRequests.filter(req => {
+      if (req.status !== 'pending') return false;
+
+      if (req.currentApprovalStep === currentUser.role) {
+        if (currentUser.role === 'supervisor') {
+          const employee = users.find(u => u.id === req.employeeId);
+          return employee?.managerId === currentUser.id;
+        }
+        return true; // For THR and CEO, if the step matches their role
+      }
+      return false;
+    });
     
     if (searchTerm) {
       filtered = filtered.filter(req => 
@@ -52,16 +61,29 @@ export default function ReviewRequestsPage() {
         break;
     }
     return filtered;
-  }, [trainingRequests, currentUser, searchTerm, sortOrder]);
+  }, [trainingRequests, currentUser, users, searchTerm, sortOrder]); // Added 'users' to dependency array
 
-  // Processed requests are those where the current user was an approver in the chain, or all requests not pending their action.
    const processedRequests = useMemo(() => {
     if (!currentUser || !allowedReviewRoles.includes(currentUser.role)) return [];
     
-    let filtered = trainingRequests.filter(req => 
-      (req.status !== 'pending' && req.approvalChain.some(action => action.userId === currentUser.id)) || 
-      (req.status === 'pending' && req.currentApprovalStep !== currentUser.role)
-    );
+    let filtered = trainingRequests.filter(req => {
+      // Condition 1: Request is completed, and currentUser was involved in the approval chain.
+      if (req.status !== 'pending' && req.approvalChain.some(action => action.userId === currentUser.id)) {
+        return true;
+      }
+
+      // Condition 2: Request is pending, but NOT for the currentUser to action.
+      if (req.status === 'pending') {
+        const isAwaitingCurrentSpecificUser = 
+          req.currentApprovalStep === currentUser.role &&
+          (currentUser.role !== 'supervisor' || users.find(u => u.id === req.employeeId)?.managerId === currentUser.id);
+        
+        if (!isAwaitingCurrentSpecificUser) {
+          return true; // It's pending, but for someone else (different role, or different supervisor)
+        }
+      }
+      return false;
+    });
 
     if (searchTerm) {
       filtered = filtered.filter(req => 
@@ -84,7 +106,7 @@ export default function ReviewRequestsPage() {
         break;
     }
     return filtered;
-  }, [trainingRequests, currentUser, searchTerm, sortOrder]);
+  }, [trainingRequests, currentUser, users, searchTerm, sortOrder]); // Added 'users' to dependency array
 
 
   if (!currentUser || !allowedReviewRoles.includes(currentUser.role)) {
