@@ -21,16 +21,13 @@ export default function ReviewRequestsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'costHigh' | 'costLow'>('newest');
 
-  // Supervisors should only see requests from employees they manage.
-  // For this mock, we'll assume supervisors see all requests not their own.
-  // In a real app, this logic would be based on reporting structure.
   const requestsForReview = useMemo(() => {
     let filtered = trainingRequests.filter(req => req.employeeId !== currentUser?.id);
     
     if (searchTerm) {
       filtered = filtered.filter(req => 
         req.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        req.purpose.toLowerCase().includes(searchTerm.toLowerCase())
+        req.trainingTitle.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -75,7 +72,7 @@ export default function ReviewRequestsPage() {
         <div className="relative w-full sm:flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input 
-            placeholder="Search by employee or purpose..." 
+            placeholder="Search by employee or training title..." 
             className="pl-10"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}

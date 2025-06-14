@@ -32,7 +32,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const storedUser = localStorage.getItem(LOCAL_STORAGE_KEY_USER);
       if (storedUser) {
-        setCurrentUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        setCurrentUser({
+          ...parsedUser,
+          dateJoined: parsedUser.dateJoined ? new Date(parsedUser.dateJoined) : undefined,
+        });
       }
       const storedRequests = localStorage.getItem(LOCAL_STORAGE_KEY_REQUESTS);
       if (storedRequests) {
@@ -48,7 +52,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Failed to load from local storage", error);
-      // Fallback to initial mock data if local storage fails or is empty
       if (trainingRequests.length === 0) {
         setTrainingRequests(initialMockTrainingRequests);
       }
@@ -75,8 +78,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = useCallback(async (email: string, role: 'employee' | 'supervisor'): Promise<boolean> => {
     const user = mockEmployees.find(emp => emp.email.toLowerCase() === email.toLowerCase() && emp.role === role);
     if (user) {
-      setCurrentUser(user);
-      setIsLoading(false); // Ensure loading is false after login attempt
+      setCurrentUser({
+        ...user,
+        dateJoined: user.dateJoined ? new Date(user.dateJoined) : undefined,
+      });
+      setIsLoading(false); 
       return true;
     }
     setIsLoading(false);

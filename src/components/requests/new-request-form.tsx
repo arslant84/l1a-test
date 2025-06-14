@@ -1,6 +1,6 @@
 
 "use client";
-import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -13,18 +13,24 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
-import { CalendarIcon, Loader2, Send } from 'lucide-react';
+import { CalendarIcon, Loader2, Send, UserCircle, Briefcase, Mail, Building, Award, CalendarCheck2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useState, type ChangeEvent } from 'react';
 import type { TrainingRequestMode } from '@/lib/types';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 
 const newRequestSchema = z.object({
-  purpose: z.string().min(10, { message: "Purpose must be at least 10 characters." }).max(500, { message: "Purpose must be at most 500 characters."}),
+  trainingTitle: z.string().min(5, { message: "Training title must be at least 5 characters." }).max(200, { message: "Training title must be at most 200 characters."}),
+  justification: z.string().min(10, { message: "Justification must be at least 10 characters." }).max(1000, { message: "Justification must be at most 1000 characters."}),
+  organiser: z.string().min(3, { message: "Organiser must be at least 3 characters." }).max(200),
+  venue: z.string().min(3, { message: "Venue must be at least 3 characters." }).max(200),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
   cost: z.coerce.number().min(0, { message: "Cost must be a non-negative number." }),
   mode: z.enum(['online', 'in-person', 'conference'] as [TrainingRequestMode, ...TrainingRequestMode[]], { required_error: "Mode of training is required." }),
+  previousRelevantTraining: z.string().max(1000, {message: "Previous training details must be at most 1000 characters."}).optional(),
   supportingDocuments: z.custom<FileList>().optional()
     .refine(files => !files || Array.from(files).every(file => file.size <= 5 * 1024 * 1024), `Max file size is 5MB.`)
     .refine(files => !files || files.length <= 3, `You can upload a maximum of 3 files.`),
@@ -35,8 +41,23 @@ const newRequestSchema = z.object({
 
 type NewRequestFormValues = z.infer<typeof newRequestSchema>;
 
+interface InfoRowProps {
+  icon: React.ElementType;
+  label: string;
+  value?: string | null;
+}
+
+const InfoRow: React.FC<InfoRowProps> = ({ icon: Icon, label, value }) => (
+  <div className="flex items-center space-x-3">
+    <Icon className="h-5 w-5 text-muted-foreground" />
+    <span className="font-medium text-sm text-muted-foreground">{label}:</span>
+    <span className="text-sm">{value || 'N/A'}</span>
+  </div>
+);
+
+
 export function NewRequestForm() {
-  const { addTrainingRequest } = useAuth();
+  const { currentUser, addTrainingRequest } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,8 +66,12 @@ export function NewRequestForm() {
   const form = useForm<NewRequestFormValues>({
     resolver: zodResolver(newRequestSchema),
     defaultValues: {
-      purpose: '',
+      trainingTitle: '',
+      justification: '',
+      organiser: '',
+      venue: '',
       cost: 0,
+      previousRelevantTraining: '',
     },
   });
 
@@ -63,11 +88,15 @@ export function NewRequestForm() {
     const documentNames = data.supportingDocuments ? Array.from(data.supportingDocuments).map(file => ({ name: file.name })) : [];
     
     const success = await addTrainingRequest({
-      purpose: data.purpose,
+      trainingTitle: data.trainingTitle,
+      justification: data.justification,
+      organiser: data.organiser,
+      venue: data.venue,
       startDate: data.startDate,
       endDate: data.endDate,
       cost: data.cost,
       mode: data.mode,
+      previousRelevantTraining: data.previousRelevantTraining,
       supportingDocuments: documentNames,
     });
 
@@ -85,116 +114,40 @@ export function NewRequestForm() {
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <FormField
-          control={form.control}
-          name="purpose"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Purpose of Training</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Describe the training and its benefits..." {...field} rows={4} />
-              </FormControl>
-              <FormDescription>
-                Clearly state the objectives and how this training aligns with your role/goals.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+    <>
+      {currentUser && (
+        <Card className="mb-8 border-dashed">
+          <CardHeader>
+            <CardTitle className="text-xl font-headline">A. Nominee's Personal Particulars</CardTitle>
+            <CardDescription>This information is based on your current profile.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+              <InfoRow icon={UserCircle} label="Name" value={currentUser.name} />
+              <InfoRow icon={Briefcase} label="Staff No." value={currentUser.staffNo} />
+              <InfoRow icon={Briefcase} label="Position" value={currentUser.position} />
+              <InfoRow icon={Building} label="Department" value={currentUser.department} />
+              <InfoRow icon={Mail} label="Email" value={currentUser.email} />
+              <InfoRow icon={Award} label="Academic Qualification" value={currentUser.academicQualification} />
+              <InfoRow icon={CalendarCheck2} label="Date Joined" value={currentUser.dateJoined ? format(currentUser.dateJoined, "PPP") : 'N/A'} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+      <h2 className="text-xl font-semibold mb-1 font-headline">B. Training Proposal Particulars</h2>
+      <p className="text-sm text-muted-foreground mb-6">Please provide all necessary information for your request.</p>
+      
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <FormField
             control={form.control}
-            name="startDate"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>Start Date</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-full pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground"
-                        )}
-                      >
-                        {field.value ? (
-                          format(field.value, "PPP")
-                        ) : (
-                          <span>Pick a date</span>
-                        )}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={field.onChange}
-                      disabled={(date) => date < new Date(new Date().setHours(0,0,0,0)) } // Disable past dates
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="endDate"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>End Date</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-full pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground"
-                        )}
-                      >
-                        {field.value ? (
-                          format(field.value, "PPP")
-                        ) : (
-                          <span>Pick a date</span>
-                        )}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={field.onChange}
-                      disabled={(date) => date < (form.getValues("startDate") || new Date(new Date().setHours(0,0,0,0)))}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="cost"
+            name="trainingTitle"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Estimated Cost (USD)</FormLabel>
+                <FormLabel>Training Title / Programme Name</FormLabel>
                 <FormControl>
-                  <Input type="number" placeholder="e.g., 500" {...field} min="0" step="0.01" />
+                  <Input placeholder="e.g., Advanced Project Management Workshop" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -203,64 +156,223 @@ export function NewRequestForm() {
 
           <FormField
             control={form.control}
-            name="mode"
+            name="justification"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Mode of Training</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a mode" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="online">Online</SelectItem>
-                    <SelectItem value="in-person">In-Person</SelectItem>
-                    <SelectItem value="conference">Conference</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FormLabel>Justification for Training</FormLabel>
+                <FormControl>
+                  <Textarea placeholder="Describe the training benefits and how it aligns with your role/goals..." {...field} rows={4} />
+                </FormControl>
+                <FormDescription>
+                  Clearly state the objectives and expected outcomes.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
-        </div>
-        
-        <FormField
-          control={form.control}
-          name="supportingDocuments"
-          render={({ field }) => ( // We don't use field directly for value, but for errors and registration
-            <FormItem>
-              <FormLabel>Supporting Documents (Optional)</FormLabel>
-              <FormControl>
-                <Input type="file" multiple onChange={handleFileChange} accept=".pdf,.doc,.docx,.jpg,.png" />
-              </FormControl>
-              <FormDescription>
-                Upload up to 3 files (PDF, DOC, DOCX, JPG, PNG). Max 5MB per file.
-              </FormDescription>
-              {selectedFiles.length > 0 && (
-                <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-                  <p className="font-medium">Selected files:</p>
-                  <ul>
-                    {selectedFiles.map(file => (
-                      <li key={file.name} className="truncate" title={file.name}>{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
-        <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting}>
-          {isSubmitting ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-             <Send className="mr-2 h-4 w-4" />
-          )}
-          Submit Request
-        </Button>
-      </form>
-    </Form>
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="organiser"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Organiser / Training Provider</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., TechSeminars Inc." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="venue"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Venue</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Online, New York City, Local Training Center" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="startDate"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Start Date</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(field.value, "PPP")
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) => date < new Date(new Date().setHours(0,0,0,0)) }
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="endDate"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>End Date</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(field.value, "PPP")
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) => date < (form.getValues("startDate") || new Date(new Date().setHours(0,0,0,0)))}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="cost"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Estimated Total Cost (USD)</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="e.g., 500" {...field} min="0" step="0.01" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="mode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Mode of Training</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a mode" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="online">Online</SelectItem>
+                      <SelectItem value="in-person">In-Person</SelectItem>
+                      <SelectItem value="conference">Conference</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="previousRelevantTraining"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Previous Relevant Training (Past 3 years - Optional)</FormLabel>
+                <FormControl>
+                  <Textarea placeholder="List any relevant training attended in the last 3 years..." {...field} rows={3} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="supportingDocuments"
+            render={() => ( 
+              <FormItem>
+                <FormLabel>Supporting Documents (Optional)</FormLabel>
+                <FormControl>
+                  <Input type="file" multiple onChange={handleFileChange} accept=".pdf,.doc,.docx,.jpg,.png" />
+                </FormControl>
+                <FormDescription>
+                  Upload up to 3 files (PDF, DOC, DOCX, JPG, PNG). Max 5MB per file.
+                </FormDescription>
+                {selectedFiles.length > 0 && (
+                  <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                    <p className="font-medium">Selected files:</p>
+                    <ul>
+                      {selectedFiles.map(file => (
+                        <li key={file.name} className="truncate" title={file.name}>{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="mr-2 h-4 w-4" />
+            )}
+            Submit Request
+          </Button>
+        </form>
+      </Form>
+    </>
   );
 }

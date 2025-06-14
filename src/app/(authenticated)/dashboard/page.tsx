@@ -68,7 +68,7 @@ export default function DashboardPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Purpose</TableHead>
+                    <TableHead>Training Title</TableHead>
                     <TableHead>Dates</TableHead>
                     <TableHead className="text-right">Cost</TableHead>
                     <TableHead className="text-center">Status</TableHead>
@@ -78,7 +78,7 @@ export default function DashboardPage() {
                 <TableBody>
                   {userRequests.map((request) => (
                     <TableRow key={request.id}>
-                      <TableCell className="font-medium max-w-xs truncate" title={request.purpose}>{request.purpose}</TableCell>
+                      <TableCell className="font-medium max-w-xs truncate" title={request.trainingTitle}>{request.trainingTitle}</TableCell>
                       <TableCell>{format(request.startDate, 'MMM d, yyyy')} - {format(request.endDate, 'MMM d, yyyy')}</TableCell>
                       <TableCell className="text-right">${request.cost.toFixed(2)}</TableCell>
                       <TableCell className="text-center">
