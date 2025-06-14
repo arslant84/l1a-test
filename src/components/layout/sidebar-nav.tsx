@@ -63,10 +63,10 @@ export function SidebarNav() {
               tooltip={{children: item.label, side: "right", align: "center", className: "ml-2"}}
               className="justify-start"
             >
-              <a>
+              <>
                 <item.icon className="h-5 w-5" />
                 <span>{item.label}</span>
-              </a>
+              </>
             </SidebarMenuButton>
           </Link>
         </SidebarMenuItem>
@@ -79,13 +79,14 @@ export function SidebarNav() {
               tooltip={{children: "Settings", side: "right", align: "center", className: "ml-2"}}
               className="justify-start"
             >
-              <a>
+              <>
                 <Settings className="h-5 w-5" />
                 <span>Settings</span>
-              </a>
+              </>
             </SidebarMenuButton>
           </Link>
       </SidebarMenuItem>
     </SidebarMenu>
   );
 }
+
