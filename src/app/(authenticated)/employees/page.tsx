@@ -64,9 +64,9 @@ export default function EmployeeDirectoryPage() {
           {filteredEmployees.length > 0 ? (
             <EmployeeTable employees={filteredEmployees} />
           ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <Search className="mx-auto h-12 w-12 mb-4" />
-              <p className="text-xl font-semibold">No Employees Found</p>
+            <div className="text-center py-16 text-muted-foreground">
+              <Search className="mx-auto h-16 w-16 mb-6" />
+              <p className="text-xl font-semibold mb-2">No Employees Found</p>
               <p>Your search for "{searchTerm}" did not match any employees.</p>
             </div>
           )}

@@ -13,7 +13,10 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
-import { CalendarIcon, Loader2, Send, UserCircle, Briefcase, Mail, Building, Award, CalendarCheck2, LayoutList, MapPinned } from 'lucide-react';
+import { 
+  CalendarIcon, Loader2, Send, UserCircle, Briefcase, Mail, Building, Award, 
+  CalendarCheck2, LayoutList, MapPin, DollarSign, FileText, BookOpen, MapPinned, History, Paperclip, CalendarDays
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useState, type ChangeEvent } from 'react';
@@ -150,7 +153,7 @@ export function NewRequestForm() {
   return (
     <>
       {currentUser && (
-        <Card className="mb-8 border-dashed">
+        <Card className="mb-8">
           <CardHeader>
             <CardTitle className="text-xl font-headline">A. Nominee's Personal Particulars</CardTitle>
             <CardDescription>This information is based on your current profile.</CardDescription>
@@ -179,7 +182,10 @@ export function NewRequestForm() {
             name="trainingTitle"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Training Title / Programme Name</FormLabel>
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-muted-foreground" />
+                  <FormLabel>Training Title / Programme Name</FormLabel>
+                </div>
                 <FormControl>
                   <Input placeholder="e.g., Advanced Project Management Workshop" {...field} />
                 </FormControl>
@@ -193,7 +199,10 @@ export function NewRequestForm() {
             name="justification"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Justification for Training</FormLabel>
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <FormLabel>Justification for Training</FormLabel>
+                </div>
                 <FormControl>
                   <Textarea placeholder="Describe the training benefits and how it aligns with your role/goals..." {...field} rows={4} />
                 </FormControl>
@@ -211,7 +220,10 @@ export function NewRequestForm() {
               name="organiser"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Organiser / Training Provider</FormLabel>
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Organiser / Training Provider</FormLabel>
+                  </div>
                   <FormControl>
                     <Input placeholder="e.g., TechSeminars Inc." {...field} />
                   </FormControl>
@@ -224,7 +236,10 @@ export function NewRequestForm() {
               name="venue"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Venue</FormLabel>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Venue</FormLabel>
+                  </div>
                   <FormControl>
                     <Input placeholder="e.g., Online, New York City, Local Training Center" {...field} />
                   </FormControl>
@@ -244,7 +259,10 @@ export function NewRequestForm() {
               name="startDate"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Start Date</FormLabel>
+                  <div className="flex items-center gap-2 mb-2"> {/* Adjusted margin for popover trigger */}
+                    <CalendarDays className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Start Date</FormLabel>
+                  </div>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -284,7 +302,10 @@ export function NewRequestForm() {
               name="endDate"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>End Date</FormLabel>
+                  <div className="flex items-center gap-2 mb-2"> {/* Adjusted margin for popover trigger */}
+                    <CalendarDays className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>End Date</FormLabel>
+                  </div>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -325,7 +346,10 @@ export function NewRequestForm() {
             name="cost"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Estimated Total Cost (USD)</FormLabel>
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-muted-foreground" />
+                  <FormLabel>Estimated Total Cost (USD)</FormLabel>
+                </div>
                 <FormControl>
                   <Input type="number" placeholder="e.g., 500" {...field} min="0" step="0.01" />
                 </FormControl>
@@ -340,7 +364,10 @@ export function NewRequestForm() {
               name="mode"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Mode of Training / Location</FormLabel>
+                  <div className="flex items-center gap-2">
+                    <MapPinned className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Mode of Training / Location</FormLabel>
+                  </div>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
@@ -362,7 +389,10 @@ export function NewRequestForm() {
               name="programType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Type of Program</FormLabel>
+                  <div className="flex items-center gap-2">
+                    <LayoutList className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Type of Program</FormLabel>
+                  </div>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
@@ -386,7 +416,10 @@ export function NewRequestForm() {
             name="previousRelevantTraining"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Previous Relevant Training (Past 3 years - Optional)</FormLabel>
+                <div className="flex items-center gap-2">
+                  <History className="h-5 w-5 text-muted-foreground" />
+                  <FormLabel>Previous Relevant Training (Past 3 years - Optional)</FormLabel>
+                </div>
                 <FormControl>
                   <Textarea placeholder="List any relevant training attended in the last 3 years..." {...field} rows={3} />
                 </FormControl>
@@ -400,7 +433,10 @@ export function NewRequestForm() {
             name="supportingDocuments"
             render={() => ( 
               <FormItem>
-                <FormLabel>Supporting Documents (Optional)</FormLabel>
+                <div className="flex items-center gap-2">
+                  <Paperclip className="h-5 w-5 text-muted-foreground" />
+                  <FormLabel>Supporting Documents (Optional)</FormLabel>
+                </div>
                 <FormControl>
                   <Input type="file" multiple onChange={handleFileChange} accept=".pdf,.doc,.docx,.jpg,.png" />
                 </FormControl>

@@ -68,9 +68,9 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           {userRequests.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Info className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-xl font-semibold">No Requests Found</p>
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Info className="h-16 w-16 text-muted-foreground mb-6" />
+              <p className="text-xl font-semibold mb-2">No Requests Found</p>
               <p className="text-muted-foreground mb-6">You haven't submitted any training requests yet.</p>
               <Button asChild variant="outline">
                 <Link href="/requests/new">
@@ -80,7 +80,7 @@ export default function DashboardPage() {
               </Button>
             </div>
           ) : (
-            <ScrollArea className="h-[calc(100vh-20rem)] sm:h-auto sm:max-h-[60vh]">
+            <ScrollArea className="h-[calc(100vh-22rem)] sm:h-auto sm:max-h-[60vh]">
               <Table>
                 <TableHeader>
                   <TableRow>

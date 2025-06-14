@@ -68,7 +68,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="items-center text-center">
-          <Logo className="mb-4" />
+          <Logo className="mb-4" iconClassName="h-8 w-8" textClassName="text-2xl" />
           <CardTitle className="font-headline text-2xl">Sign In</CardTitle>
           <CardDescription>Access your L1A Approve account. Use a mock email.</CardDescription>
         </CardHeader>

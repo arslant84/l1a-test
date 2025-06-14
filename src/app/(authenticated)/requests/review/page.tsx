@@ -187,9 +187,9 @@ export default function ReviewRequestsPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <CheckSquare className="mx-auto h-12 w-12 mb-4" />
-              <p className="text-xl font-semibold">All caught up!</p>
+            <div className="text-center py-16 text-muted-foreground">
+              <CheckSquare className="mx-auto h-16 w-16 mb-6" />
+              <p className="text-xl font-semibold mb-2">All caught up!</p>
               <p>No requests awaiting your action at this time.</p>
             </div>
           )}
@@ -202,9 +202,9 @@ export default function ReviewRequestsPage() {
               ))}
             </div>
           ) : (
-             <div className="text-center py-12 text-muted-foreground">
-               <ListFilter className="mx-auto h-12 w-12 mb-4" />
-              <p className="text-xl font-semibold">No Other Requests</p>
+             <div className="text-center py-16 text-muted-foreground">
+               <ListFilter className="mx-auto h-16 w-16 mb-6" />
+              <p className="text-xl font-semibold mb-2">No Other Requests</p>
               <p>There are no other requests to display at this time.</p>
             </div>
           )}
