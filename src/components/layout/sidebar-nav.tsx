@@ -56,14 +56,13 @@ export function SidebarNav() {
     <SidebarMenu className="p-2">
       {navItems.map((item) => (
         <SidebarMenuItem key={item.href}>
-          <Link href={item.href} legacyBehavior passHref>
+          <Link href={item.href}>
             <SidebarMenuButton
               asChild
               isActive={pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))}
               tooltip={{children: item.label, side: "right", align: "center", className: "ml-2"}}
               className="justify-start"
             >
-              {/* Wrap content in a span that can accept props from SidebarMenuButton (Slot) */}
               <span>
                 <item.icon className="h-5 w-5" />
                 <span>{item.label}</span>
@@ -73,14 +72,13 @@ export function SidebarNav() {
         </SidebarMenuItem>
       ))}
       <SidebarMenuItem className="mt-auto pt-2 border-t border-sidebar-border">
-         <Link href="/settings" legacyBehavior passHref>
+         <Link href="/settings">
             <SidebarMenuButton
               asChild
               isActive={pathname === '/settings'}
               tooltip={{children: "Settings", side: "right", align: "center", className: "ml-2"}}
               className="justify-start"
             >
-              {/* Wrap content in a span that can accept props from SidebarMenuButton (Slot) */}
               <span>
                 <Settings className="h-5 w-5" />
                 <span>Settings</span>
