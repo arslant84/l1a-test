@@ -17,7 +17,7 @@ import {
 
 
 export default function ReviewRequestsPage() {
-  const { currentUser, trainingRequests, users } = useAuth(); // Added 'users'
+  const { currentUser, trainingRequests, users } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'costHigh' | 'costLow'>('newest');
 
@@ -29,14 +29,21 @@ export default function ReviewRequestsPage() {
     let filtered = trainingRequests.filter(req => {
       if (req.status !== 'pending') return false;
 
+      // Check if the request's current approval step matches the current user's role
       if (req.currentApprovalStep === currentUser.role) {
+        // If the current user is a supervisor, there's an additional check:
+        // The request's employee must be managed by this supervisor.
         if (currentUser.role === 'supervisor') {
           const employee = users.find(u => u.id === req.employeeId);
-          return employee?.managerId === currentUser.id;
+          // Ensure employee and relevant IDs exist before comparing
+          if (employee && typeof employee.managerId === 'string' && typeof currentUser.id === 'string') {
+            return employee.managerId === currentUser.id;
+          }
+          return false; // Employee not found or IDs are problematic
         }
-        return true; // For THR and CEO, if the step matches their role
+        return true; // For THR and CEO, if the step matches their role, it's for them.
       }
-      return false;
+      return false; // Not pending for the current user's role/step.
     });
     
     if (searchTerm) {
@@ -61,25 +68,35 @@ export default function ReviewRequestsPage() {
         break;
     }
     return filtered;
-  }, [trainingRequests, currentUser, users, searchTerm, sortOrder]); // Added 'users' to dependency array
+  }, [trainingRequests, currentUser, users, searchTerm, sortOrder]);
 
    const processedRequests = useMemo(() => {
     if (!currentUser || !allowedReviewRoles.includes(currentUser.role)) return [];
     
     let filtered = trainingRequests.filter(req => {
-      // Condition 1: Request is completed, and currentUser was involved in the approval chain.
+      // Condition 1: Request is completed (not pending), and currentUser was involved in the approval chain.
       if (req.status !== 'pending' && req.approvalChain.some(action => action.userId === currentUser.id)) {
         return true;
       }
 
-      // Condition 2: Request is pending, but NOT for the currentUser to action.
+      // Condition 2: Request is pending, but NOT specifically for the currentUser to action.
       if (req.status === 'pending') {
-        const isAwaitingCurrentSpecificUser = 
-          req.currentApprovalStep === currentUser.role &&
-          (currentUser.role !== 'supervisor' || users.find(u => u.id === req.employeeId)?.managerId === currentUser.id);
+        let isAwaitingThisUserDirectly = false;
+        if (req.currentApprovalStep === currentUser.role) {
+          if (currentUser.role === 'supervisor') {
+            const employee = users.find(u => u.id === req.employeeId);
+            if (employee && typeof employee.managerId === 'string' && typeof currentUser.id === 'string') {
+              isAwaitingThisUserDirectly = employee.managerId === currentUser.id;
+            }
+          } else {
+            // For THR/CEO, if the step matches their role, it's directly for them.
+            isAwaitingThisUserDirectly = true;
+          }
+        }
         
-        if (!isAwaitingCurrentSpecificUser) {
-          return true; // It's pending, but for someone else (different role, or different supervisor)
+        // If it's NOT awaiting this user directly (e.g. wrong supervisor, or different role step), include in "other".
+        if (!isAwaitingThisUserDirectly) {
+          return true;
         }
       }
       return false;
@@ -93,6 +110,7 @@ export default function ReviewRequestsPage() {
     }
      switch (sortOrder) {
       case 'newest':
+        // For processed requests, sorting by lastUpdated might be more relevant
         filtered.sort((a,b) => b.lastUpdated.getTime() - a.lastUpdated.getTime());
         break;
       case 'oldest':
@@ -106,7 +124,7 @@ export default function ReviewRequestsPage() {
         break;
     }
     return filtered;
-  }, [trainingRequests, currentUser, users, searchTerm, sortOrder]); // Added 'users' to dependency array
+  }, [trainingRequests, currentUser, users, searchTerm, sortOrder]);
 
 
   if (!currentUser || !allowedReviewRoles.includes(currentUser.role)) {
