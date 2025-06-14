@@ -7,7 +7,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -15,10 +14,13 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, LogIn } from 'lucide-react';
 import { Logo } from '@/components/layout/logo';
+import type { Employee } from '@/lib/types';
+
+const userRoles: [Employee['role'], ...Employee['role'][]] = ['employee', 'supervisor', 'thr', 'ceo', 'cm'];
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
-  role: z.enum(['employee', 'supervisor'], { required_error: "You must select a role." }),
+  role: z.enum(userRoles, { required_error: "You must select a role." }),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -52,6 +54,15 @@ export default function LoginPage() {
       setIsLoggingIn(false);
     }
   };
+  
+  const roleDisplayNames: Record<Employee['role'], string> = {
+    employee: 'Employee',
+    supervisor: 'Supervisor',
+    thr: 'THR',
+    ceo: 'CEO',
+    cm: 'Contract Manager (CM)'
+  };
+
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
@@ -87,24 +98,18 @@ export default function LoginPage() {
                       <RadioGroup
                         onValueChange={field.onChange}
                         defaultValue={field.value}
-                        className="flex flex-col space-y-1"
+                        className="grid grid-cols-2 gap-x-4 gap-y-2"
                       >
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="employee" />
-                          </FormControl>
-                          <FormLabel className="font-normal">
-                            Employee
-                          </FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="supervisor" />
-                          </FormControl>
-                          <FormLabel className="font-normal">
-                            Supervisor
-                          </FormLabel>
-                        </FormItem>
+                        {userRoles.map(roleValue => (
+                          <FormItem key={roleValue} className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value={roleValue} />
+                            </FormControl>
+                            <FormLabel className="font-normal">
+                              {roleDisplayNames[roleValue]}
+                            </FormLabel>
+                          </FormItem>
+                        ))}
                       </RadioGroup>
                     </FormControl>
                     <FormMessage />
@@ -122,8 +127,15 @@ export default function LoginPage() {
             </form>
           </Form>
         </CardContent>
-        <CardFooter className="flex justify-center">
-           <p className="text-xs text-muted-foreground">Mock emails: alice@example.com (employee), carol@example.com (supervisor)</p>
+        <CardFooter className="flex flex-col items-start text-xs text-muted-foreground space-y-1">
+           <p>Mock emails:</p>
+           <ul className="list-disc list-inside pl-2">
+            <li>alice@example.com (employee)</li>
+            <li>carol@example.com (supervisor)</li>
+            <li>tom@example.com (thr)</li>
+            <li>grace@example.com (ceo)</li>
+            <li>charles@example.com (cm)</li>
+           </ul>
         </CardFooter>
       </Card>
     </div>

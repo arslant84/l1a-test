@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { useState, useMemo } from 'react';
 import { Search, Users, AlertTriangle } from 'lucide-react';
+import type { Employee } from '@/lib/types';
 
 export default function EmployeeDirectoryPage() {
   const { users, currentUser } = useAuth();
@@ -20,13 +21,14 @@ export default function EmployeeDirectoryPage() {
     );
   }, [users, searchTerm]);
 
-  // Optionally restrict this page to supervisors only
-  if (currentUser?.role !== 'supervisor') {
+  const allowedViewRoles: Employee['role'][] = ['supervisor', 'thr', 'ceo'];
+
+  if (!currentUser || !allowedViewRoles.includes(currentUser.role)) {
      return (
       <div className="flex flex-col items-center justify-center h-full text-center p-4">
         <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Access Denied</h2>
-        <p className="text-muted-foreground">This page is accessible to supervisors only.</p>
+        <p className="text-muted-foreground">This page is accessible to Supervisors, THR, and CEO roles only.</p>
       </div>
     );
   }

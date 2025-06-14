@@ -17,10 +17,26 @@ export default function DashboardPage() {
   const userRequests = trainingRequests.filter(req => req.employeeId === currentUser?.id)
     .sort((a,b) => b.submittedDate.getTime() - a.submittedDate.getTime());
 
+  const getStatusText = (request: TrainingRequest): string => {
+    if (request.status === 'approved') return 'Approved';
+    if (request.status === 'rejected') {
+      const lastAction = request.approvalChain[request.approvalChain.length - 1];
+      if (lastAction?.decision === 'rejected') {
+        return `Rejected by ${lastAction.stepRole}`;
+      }
+      return 'Rejected';
+    }
+    // Pending status
+    if (request.currentApprovalStep === 'supervisor') return 'Pending Supervisor';
+    if (request.currentApprovalStep === 'thr') return 'Pending THR';
+    if (request.currentApprovalStep === 'ceo') return 'Pending CEO';
+    return 'Pending Review';
+  };
+  
   const getStatusVariant = (status: TrainingRequest['status']): "default" | "secondary" | "destructive" | "outline" => {
     switch (status) {
       case 'approved':
-        return 'default'; // default is primary based on theme
+        return 'default'; 
       case 'pending':
         return 'secondary';
       case 'rejected':
@@ -83,7 +99,7 @@ export default function DashboardPage() {
                       <TableCell className="text-right">${request.cost.toFixed(2)}</TableCell>
                       <TableCell className="text-center">
                         <Badge variant={getStatusVariant(request.status)} className="capitalize">
-                          {request.status}
+                          {getStatusText(request)}
                         </Badge>
                       </TableCell>
                       <TableCell>{format(request.submittedDate, 'MMM d, yyyy')}</TableCell>

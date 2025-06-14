@@ -2,17 +2,17 @@
 "use client";
 import type { ReactNode } from 'react';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import type { Employee, TrainingRequest, TrainingRequestStatus } from '@/lib/types';
+import type { Employee, TrainingRequest, TrainingRequestStatus, ApprovalAction, CurrentApprovalStep, ApprovalStepRole } from '@/lib/types';
 import { mockEmployees, mockTrainingRequests as initialMockTrainingRequests } from '@/lib/mock-data';
 
 interface AuthContextType {
   currentUser: Employee | null;
   isLoading: boolean;
-  login: (email: string, role: 'employee' | 'supervisor') => Promise<boolean>;
+  login: (email: string, role: Employee['role']) => Promise<boolean>;
   logout: () => void;
   trainingRequests: TrainingRequest[];
-  addTrainingRequest: (request: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated'>) => Promise<boolean>;
-  updateRequestStatus: (requestId: string, status: TrainingRequestStatus, supervisorNotes?: string) => Promise<boolean>;
+  addTrainingRequest: (request: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain'>) => Promise<boolean>;
+  updateRequestStatus: (requestId: string, decision: 'approved' | 'rejected', notes?: string) => Promise<boolean>;
   users: Employee[];
 }
 
@@ -46,6 +46,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           endDate: new Date(req.endDate),
           submittedDate: new Date(req.submittedDate),
           lastUpdated: new Date(req.lastUpdated),
+          approvalChain: req.approvalChain ? req.approvalChain.map(action => ({...action, date: new Date(action.date)})) : [],
         })));
       } else {
         setTrainingRequests(initialMockTrainingRequests);
@@ -53,7 +54,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Failed to load from local storage", error);
       if (trainingRequests.length === 0) {
-        setTrainingRequests(initialMockTrainingRequests);
+        setTrainingRequests(initialMockTrainingRequests.map(req => ({
+          ...req,
+          approvalChain: req.approvalChain ? req.approvalChain.map(action => ({...action, date: new Date(action.date)})) : [],
+        })));
       }
     } finally {
       setIsLoading(false);
@@ -75,7 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser, trainingRequests, isLoading]);
 
-  const login = useCallback(async (email: string, role: 'employee' | 'supervisor'): Promise<boolean> => {
+  const login = useCallback(async (email: string, role: Employee['role']): Promise<boolean> => {
     const user = mockEmployees.find(emp => emp.email.toLowerCase() === email.toLowerCase() && emp.role === role);
     if (user) {
       setCurrentUser({
@@ -94,7 +98,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem(LOCAL_STORAGE_KEY_USER);
   }, []);
 
-  const addTrainingRequest = useCallback(async (requestData: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated'>): Promise<boolean> => {
+  const addTrainingRequest = useCallback(async (requestData: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain'>): Promise<boolean> => {
     if (!currentUser) return false;
     const newRequest: TrainingRequest = {
       ...requestData,
@@ -102,6 +106,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       employeeId: currentUser.id,
       employeeName: currentUser.name,
       status: 'pending',
+      currentApprovalStep: 'supervisor',
+      approvalChain: [],
       submittedDate: new Date(),
       lastUpdated: new Date(),
     };
@@ -109,15 +115,62 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return true;
   }, [currentUser]);
 
-  const updateRequestStatus = useCallback(async (requestId: string, status: TrainingRequestStatus, supervisorNotes?: string): Promise<boolean> => {
-    if (!currentUser || currentUser.role !== 'supervisor') return false;
-    
+  const updateRequestStatus = useCallback(async (requestId: string, decision: 'approved' | 'rejected', notes?: string): Promise<boolean> => {
+    if (!currentUser) return false;
+
     setTrainingRequests(prevRequests =>
-      prevRequests.map(req =>
-        req.id === requestId
-          ? { ...req, status, supervisorNotes: supervisorNotes || req.supervisorNotes, lastUpdated: new Date() }
-          : req
-      )
+      prevRequests.map(req => {
+        if (req.id === requestId && req.currentApprovalStep !== 'completed' && currentUser.role === req.currentApprovalStep) {
+          const newAction: ApprovalAction = {
+            stepRole: req.currentApprovalStep as ApprovalStepRole, // Cast, as 'completed' is filtered out
+            decision,
+            userId: currentUser.id,
+            userName: currentUser.name,
+            notes,
+            date: new Date(),
+          };
+
+          const updatedApprovalChain = [...req.approvalChain, newAction];
+          let nextApprovalStep: CurrentApprovalStep = req.currentApprovalStep;
+          let finalStatus: TrainingRequestStatus = req.status;
+
+          if (decision === 'rejected') {
+            finalStatus = 'rejected';
+            nextApprovalStep = 'completed';
+          } else { // Approved
+            switch (req.currentApprovalStep) {
+              case 'supervisor':
+                nextApprovalStep = 'thr';
+                break;
+              case 'thr':
+                // CEO approval if cost > 2000 OR (mode is conference AND venue is not explicitly online/local)
+                const requiresCeoApproval = req.cost > 2000 || 
+                                            (req.mode === 'conference' && 
+                                             !req.venue.toLowerCase().includes('online') && 
+                                             !req.venue.toLowerCase().includes('local training center')); // Simplified venue check
+                if (requiresCeoApproval) {
+                  nextApprovalStep = 'ceo';
+                } else {
+                  finalStatus = 'approved';
+                  nextApprovalStep = 'completed';
+                }
+                break;
+              case 'ceo':
+                finalStatus = 'approved';
+                nextApprovalStep = 'completed';
+                break;
+            }
+          }
+          return { 
+            ...req, 
+            status: finalStatus,
+            currentApprovalStep: nextApprovalStep,
+            approvalChain: updatedApprovalChain,
+            lastUpdated: new Date() 
+          };
+        }
+        return req;
+      })
     );
     return true;
   }, [currentUser]);

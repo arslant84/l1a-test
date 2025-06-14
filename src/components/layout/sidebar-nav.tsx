@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
+import type { Employee } from '@/lib/types';
 import {
   LayoutDashboard,
   FilePlus2,
@@ -13,23 +14,25 @@ import {
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuSkeleton } from '@/components/ui/sidebar';
 
-const employeeNavItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/requests/new', label: 'New Request', icon: FilePlus2 },
-];
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  roles: Employee['role'][];
+}
 
-const supervisorNavItems = [
-  { href: '/dashboard', label: 'My Requests', icon: LayoutDashboard },
-  { href: '/requests/new', label: 'New Request', icon: FilePlus2 },
-  { href: '/requests/review', label: 'Review Requests', icon: ClipboardCheck },
-  { href: '/employees', label: 'Employee Directory', icon: Users },
+const allNavItems: NavItem[] = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['employee', 'supervisor', 'thr', 'ceo', 'cm'] }, // My Requests for supervisor
+  { href: '/requests/new', label: 'New Request', icon: FilePlus2, roles: ['employee', 'supervisor', 'thr', 'ceo', 'cm'] },
+  { href: '/requests/review', label: 'Review Requests', icon: ClipboardCheck, roles: ['supervisor', 'thr', 'ceo'] },
+  { href: '/employees', label: 'Employee Directory', icon: Users, roles: ['supervisor', 'thr', 'ceo'] }, // Supervisors, THR, CEO can see directory
 ];
 
 export function SidebarNav() {
   const pathname = usePathname();
   const { currentUser, isLoading } = useAuth();
 
-  if (isLoading) {
+  if (isLoading || !currentUser) {
     return (
       <SidebarMenu className="p-2">
         <SidebarMenuSkeleton showIcon />
@@ -38,8 +41,16 @@ export function SidebarNav() {
       </SidebarMenu>
     );
   }
+  
+  const userRole = currentUser.role;
+  const navItems = allNavItems.filter(item => item.roles.includes(userRole));
+  
+  // Adjust label for dashboard for supervisors/approvers
+  const dashboardItem = navItems.find(item => item.href === '/dashboard');
+  if (dashboardItem && (userRole === 'supervisor' || userRole === 'thr' || userRole === 'ceo')) {
+    dashboardItem.label = 'My Requests';
+  }
 
-  const navItems = currentUser?.role === 'supervisor' ? supervisorNavItems : employeeNavItems;
 
   return (
     <SidebarMenu className="p-2">
@@ -60,7 +71,6 @@ export function SidebarNav() {
           </Link>
         </SidebarMenuItem>
       ))}
-       {/* Example of an additional item always visible, e.g. settings or profile */}
       <SidebarMenuItem className="mt-auto pt-2 border-t border-sidebar-border">
          <Link href="/settings" passHref legacyBehavior>
             <SidebarMenuButton

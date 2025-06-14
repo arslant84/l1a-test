@@ -3,8 +3,8 @@
 import { useAuth } from '@/hooks/use-auth';
 import { ReviewCard } from '@/components/requests/review-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { TrainingRequest } from '@/lib/types';
-import { AlertTriangle, CheckSquare, ListFilter, Search } from 'lucide-react';
+import type { TrainingRequest, Employee } from '@/lib/types';
+import { AlertTriangle, CheckSquare, ListFilter, Search, UserCheck } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useState, useMemo } from 'react';
 import {
@@ -21,8 +21,14 @@ export default function ReviewRequestsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'costHigh' | 'costLow'>('newest');
 
+  const allowedReviewRoles: Employee['role'][] = ['supervisor', 'thr', 'ceo'];
+
   const requestsForReview = useMemo(() => {
-    let filtered = trainingRequests.filter(req => req.employeeId !== currentUser?.id);
+    if (!currentUser || !allowedReviewRoles.includes(currentUser.role)) return [];
+
+    let filtered = trainingRequests.filter(req => 
+        req.currentApprovalStep === currentUser.role && req.status === 'pending'
+    );
     
     if (searchTerm) {
       filtered = filtered.filter(req => 
@@ -48,10 +54,40 @@ export default function ReviewRequestsPage() {
     return filtered;
   }, [trainingRequests, currentUser, searchTerm, sortOrder]);
 
-  const pendingRequests = requestsForReview.filter(req => req.status === 'pending');
-  const processedRequests = requestsForReview.filter(req => req.status !== 'pending');
+  // Processed requests are those where the current user was an approver in the chain, or all requests not pending their action.
+   const processedRequests = useMemo(() => {
+    if (!currentUser || !allowedReviewRoles.includes(currentUser.role)) return [];
+    
+    let filtered = trainingRequests.filter(req => 
+      (req.status !== 'pending' && req.approvalChain.some(action => action.userId === currentUser.id)) || 
+      (req.status === 'pending' && req.currentApprovalStep !== currentUser.role)
+    );
 
-  if (currentUser?.role !== 'supervisor') {
+    if (searchTerm) {
+      filtered = filtered.filter(req => 
+        req.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        req.trainingTitle.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+     switch (sortOrder) {
+      case 'newest':
+        filtered.sort((a,b) => b.lastUpdated.getTime() - a.lastUpdated.getTime());
+        break;
+      case 'oldest':
+        filtered.sort((a,b) => a.lastUpdated.getTime() - b.lastUpdated.getTime());
+        break;
+      case 'costHigh':
+        filtered.sort((a,b) => b.cost - a.cost);
+        break;
+      case 'costLow':
+        filtered.sort((a,b) => a.cost - b.cost);
+        break;
+    }
+    return filtered;
+  }, [trainingRequests, currentUser, searchTerm, sortOrder]);
+
+
+  if (!currentUser || !allowedReviewRoles.includes(currentUser.role)) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-4">
         <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
@@ -97,16 +133,16 @@ export default function ReviewRequestsPage() {
       <Tabs defaultValue="pending" className="w-full">
         <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:inline-flex mb-4">
           <TabsTrigger value="pending" className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4" /> Pending ({pendingRequests.length})
+            <UserCheck className="h-4 w-4" /> Awaiting My Action ({requestsForReview.length})
           </TabsTrigger>
           <TabsTrigger value="processed" className="flex items-center gap-2">
-            <CheckSquare className="h-4 w-4" /> Processed ({processedRequests.length})
+            <CheckSquare className="h-4 w-4" /> All Other Requests ({processedRequests.length})
           </TabsTrigger>
         </TabsList>
         <TabsContent value="pending">
-          {pendingRequests.length > 0 ? (
+          {requestsForReview.length > 0 ? (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {pendingRequests.map(request => (
+              {requestsForReview.map(request => (
                 <ReviewCard key={request.id} request={request} />
               ))}
             </div>
@@ -114,7 +150,7 @@ export default function ReviewRequestsPage() {
             <div className="text-center py-12 text-muted-foreground">
               <CheckSquare className="mx-auto h-12 w-12 mb-4" />
               <p className="text-xl font-semibold">All caught up!</p>
-              <p>No pending requests to review at this time.</p>
+              <p>No requests awaiting your action at this time.</p>
             </div>
           )}
         </TabsContent>
@@ -122,14 +158,14 @@ export default function ReviewRequestsPage() {
           {processedRequests.length > 0 ? (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {processedRequests.map(request => (
-                <ReviewCard key={request.id} request={request} />
+                <ReviewCard key={request.id} request={request} isReadOnly={true} />
               ))}
             </div>
           ) : (
              <div className="text-center py-12 text-muted-foreground">
                <ListFilter className="mx-auto h-12 w-12 mb-4" />
-              <p className="text-xl font-semibold">No Processed Requests</p>
-              <p>There are no approved or rejected requests yet.</p>
+              <p className="text-xl font-semibold">No Other Requests</p>
+              <p>There are no other requests to display at this time.</p>
             </div>
           )}
         </TabsContent>
