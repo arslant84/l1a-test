@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   Users,
   Settings,
+  BarChartHorizontalBig,
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuSkeleton } from '@/components/ui/sidebar';
 
@@ -22,10 +23,11 @@ interface NavItem {
 }
 
 const allNavItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['employee', 'supervisor', 'thr', 'ceo', 'cm'] }, // My Requests for supervisor
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['employee', 'supervisor', 'thr', 'ceo', 'cm'] },
   { href: '/requests/new', label: 'New Request', icon: FilePlus2, roles: ['employee', 'supervisor', 'thr', 'ceo', 'cm'] },
   { href: '/requests/review', label: 'Review Requests', icon: ClipboardCheck, roles: ['supervisor', 'thr', 'ceo'] },
-  { href: '/employees', label: 'Employee Directory', icon: Users, roles: ['supervisor', 'thr', 'ceo'] }, // Supervisors, THR, CEO can see directory
+  { href: '/employees', label: 'Employee Directory', icon: Users, roles: ['supervisor', 'thr', 'ceo'] },
+  { href: '/analytics', label: 'Analytics', icon: BarChartHorizontalBig, roles: ['thr', 'ceo'] },
 ];
 
 export function SidebarNav() {
@@ -38,6 +40,7 @@ export function SidebarNav() {
         <SidebarMenuSkeleton showIcon />
         <SidebarMenuSkeleton showIcon />
         <SidebarMenuSkeleton showIcon />
+        <SidebarMenuSkeleton showIcon />
       </SidebarMenu>
     );
   }
@@ -45,7 +48,6 @@ export function SidebarNav() {
   const userRole = currentUser.role;
   const navItems = allNavItems.filter(item => item.roles.includes(userRole));
   
-  // Adjust label for dashboard for supervisors/approvers
   const dashboardItem = navItems.find(item => item.href === '/dashboard');
   if (dashboardItem && (userRole === 'supervisor' || userRole === 'thr' || userRole === 'ceo')) {
     dashboardItem.label = 'My Requests';
@@ -56,7 +58,7 @@ export function SidebarNav() {
     <SidebarMenu className="p-2">
       {navItems.map((item) => (
         <SidebarMenuItem key={item.href}>
-          <Link href={item.href}>
+          <Link legacyBehavior passHref href={item.href}>
             <SidebarMenuButton
               asChild
               isActive={pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))}
@@ -72,7 +74,7 @@ export function SidebarNav() {
         </SidebarMenuItem>
       ))}
       <SidebarMenuItem className="mt-auto pt-2 border-t border-sidebar-border">
-         <Link href="/settings">
+         <Link legacyBehavior passHref href="/settings">
             <SidebarMenuButton
               asChild
               isActive={pathname === '/settings'}
@@ -89,3 +91,4 @@ export function SidebarNav() {
     </SidebarMenu>
   );
 }
+
