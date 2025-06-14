@@ -10,7 +10,7 @@ import {
   addTrainingRequestAction, 
   updateRequestStatusAction 
 } from '@/actions/dataActions';
-import { parseTrainingRequest, parseEmployee } from '@/lib/db'; // Import parsers
+// Removed: import { parseTrainingRequest, parseEmployee } from '@/lib/db';
 
 interface AuthContextType {
   currentUser: Employee | null;
@@ -39,10 +39,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       const fetchedUsers = await fetchAllUsersAction();
-      setUsers(fetchedUsers.map(parseEmployee)); // Ensure users are parsed
+      setUsers(fetchedUsers); // Data from action is already parsed
 
       const fetchedRequests = await fetchAllTrainingRequestsAction();
-      setTrainingRequests(fetchedRequests.map(parseTrainingRequest)); // Ensure requests are parsed
+      setTrainingRequests(fetchedRequests); // Data from action is already parsed
 
       if (loggedInUser) {
          // Re-fetch current user from DB to ensure data consistency, especially after potential DB updates
@@ -70,7 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (storedUserId && storedUserRole) {
            // Instead of full user object, find from all users fetched, then get by email and role.
            // This is a simplified re-auth. A real app would use tokens/sessions.
-          const allDbUsers = await fetchAllUsersAction();
+          const allDbUsers = await fetchAllUsersAction(); // Fetch users via action
           const potentialUser = allDbUsers.find(u => u.id === storedUserId && u.role === storedUserRole);
           if (potentialUser) {
              sessionUser = await loginUserAction(potentialUser.email, potentialUser.role);
