@@ -9,7 +9,7 @@ export const mockEmployees: Employee[] = [
     department: 'Engineering',
     role: 'employee',
     avatarUrl: 'https://placehold.co/100x100.png',
-    managerId: 'sup1', // Carol White
+    managerId: 'sup1', 
     position: 'Software Engineer II',
     staffNo: 'E00123',
     academicQualification: 'B.Sc. Computer Science',
@@ -22,7 +22,7 @@ export const mockEmployees: Employee[] = [
     department: 'Marketing',
     role: 'employee',
     avatarUrl: 'https://placehold.co/100x100.png',
-    managerId: 'sup2', // David Brown
+    managerId: 'sup2', 
     position: 'Marketing Specialist',
     staffNo: 'E00456',
     academicQualification: 'B.A. Marketing',
@@ -30,7 +30,7 @@ export const mockEmployees: Employee[] = [
   },
   {
     id: 'sup1',
-    name: 'Carol White', // Alice's Supervisor/HOD
+    name: 'Carol White', 
     email: 'carol@example.com',
     department: 'Engineering',
     role: 'supervisor',
@@ -42,7 +42,7 @@ export const mockEmployees: Employee[] = [
   },
   {
     id: 'sup2',
-    name: 'David Brown', // Bob's Supervisor/HOD
+    name: 'David Brown', 
     email: 'david@example.com',
     department: 'Marketing',
     role: 'supervisor',
@@ -59,7 +59,7 @@ export const mockEmployees: Employee[] = [
     department: 'Engineering',
     role: 'employee',
     avatarUrl: 'https://placehold.co/100x100.png',
-    managerId: 'sup1', // Carol White
+    managerId: 'sup1', 
     position: 'QA Engineer',
     staffNo: 'E00112',
     academicQualification: 'B.Eng. Electrical Engineering',
@@ -103,37 +103,20 @@ export const mockEmployees: Employee[] = [
   },
 ];
 
-const supervisor1Approval: ApprovalAction = {
-  stepRole: 'supervisor',
-  decision: 'approved',
-  userId: 'sup1', // Carol White
-  userName: 'Carol White',
-  notes: 'Approved by supervisor.',
-  date: new Date('2024-06-20')
-};
-
-const thr1Approval: ApprovalAction = {
-  stepRole: 'thr',
-  decision: 'approved',
-  userId: 'thr1', // Tom Harris
-  userName: 'Tom Harris',
-  notes: 'THR endorsement complete.',
-  date: new Date('2024-06-22')
-};
-
 export const mockTrainingRequests: TrainingRequest[] = [
   {
     id: 'req1',
-    employeeId: 'emp1', // Alice
+    employeeId: 'emp1', 
     employeeName: 'Alice Johnson',
     trainingTitle: 'Advanced Next.js Workshop',
     justification: 'To improve frontend skills and learn new SSR techniques for upcoming Project Phoenix.',
     organiser: 'TechSeminars Inc.',
-    venue: 'Online',
+    venue: 'Online Platform X',
     startDate: new Date('2024-09-15'),
     endDate: new Date('2024-09-17'),
     cost: 1200,
     mode: 'online',
+    programType: 'specialized',
     previousRelevantTraining: 'React Fundamentals (2023)',
     supportingDocuments: [{ name: 'Workshop Brochure.pdf' }],
     status: 'pending',
@@ -144,16 +127,17 @@ export const mockTrainingRequests: TrainingRequest[] = [
   },
   {
     id: 'req2',
-    employeeId: 'emp2', // Bob
+    employeeId: 'emp2', 
     employeeName: 'Bob Smith',
     trainingTitle: 'Digital Marketing Conference 2024',
     justification: 'To learn about latest trends and network with industry professionals, benefiting our new product launch campaign.',
     organiser: 'Global Marketers Association',
-    venue: 'New York City, USA', // Overseas example
+    venue: 'New York City, USA', 
     startDate: new Date('2024-10-05'),
     endDate: new Date('2024-10-07'),
-    cost: 2500, // High cost
-    mode: 'conference',
+    cost: 2500, 
+    mode: 'overseas',
+    programType: 'conference/seminar/forum',
     status: 'approved',
     currentApprovalStep: 'completed',
     approvalChain: [
@@ -166,16 +150,17 @@ export const mockTrainingRequests: TrainingRequest[] = [
   },
   {
     id: 'req3',
-    employeeId: 'emp1', // Alice
+    employeeId: 'emp1', 
     employeeName: 'Alice Johnson',
     trainingTitle: 'Project Management Certification Course',
     justification: 'To enhance leadership and organizational skills for a potential team lead role.',
     organiser: 'PMI Institute',
-    venue: 'Local Training Center',
+    venue: 'Local Training Center Alpha',
     startDate: new Date('2024-11-01'),
     endDate: new Date('2024-11-30'),
     cost: 1800,
-    mode: 'in-person',
+    mode: 'local',
+    programType: 'course',
     status: 'rejected',
     currentApprovalStep: 'completed',
     approvalChain: [
@@ -186,18 +171,19 @@ export const mockTrainingRequests: TrainingRequest[] = [
   },
   {
     id: 'req4',
-    employeeId: 'emp3', // Eve
+    employeeId: 'emp3', 
     employeeName: 'Eve Davis',
     trainingTitle: 'Cloud Security Fundamentals',
     justification: 'Essential for understanding security protocols for our cloud migration project.',
     organiser: 'SecureCloud Academy',
-    venue: 'Online',
+    venue: 'Online - AWS Portal',
     startDate: new Date('2024-09-20'),
     endDate: new Date('2024-09-22'),
     cost: 700,
     mode: 'online',
+    programType: 'specialized',
     status: 'pending',
-    currentApprovalStep: 'thr', // Assume supervisor (Carol White) approved
+    currentApprovalStep: 'thr', 
     approvalChain: [
       { stepRole: 'supervisor', decision: 'approved', userId: 'sup1', userName: 'Carol White', notes: 'Good initiative.', date: new Date('2024-07-12') }
     ],
@@ -206,23 +192,43 @@ export const mockTrainingRequests: TrainingRequest[] = [
   },
   {
     id: 'req5',
-    employeeId: 'emp1', // Alice
+    employeeId: 'emp1', 
     employeeName: 'Alice Johnson',
     trainingTitle: 'Advanced AI Summit',
     justification: 'Crucial for upcoming AI projects.',
     organiser: 'AI Global',
-    venue: 'London, UK', // Overseas
+    venue: 'London, UK', 
     startDate: new Date('2024-12-01'),
     endDate: new Date('2024-12-03'),
-    cost: 3500, // High cost
-    mode: 'conference',
+    cost: 3500, 
+    mode: 'overseas',
+    programType: 'conference/seminar/forum',
     status: 'pending',
-    currentApprovalStep: 'ceo', // Assume supervisor and THR approved
+    currentApprovalStep: 'ceo', 
     approvalChain: [
       { stepRole: 'supervisor', decision: 'approved', userId: 'sup1', userName: 'Carol White', notes: 'Seems important.', date: new Date('2024-07-15') },
       { stepRole: 'thr', decision: 'approved', userId: 'thr1', userName: 'Tom Harris', notes: 'THR supports this.', date: new Date('2024-07-17') }
     ],
     submittedDate: new Date('2024-07-14'),
     lastUpdated: new Date('2024-07-17'),
+  },
+  {
+    id: 'req6',
+    employeeId: 'emp2',
+    employeeName: 'Bob Smith',
+    trainingTitle: 'In-House Leadership Workshop',
+    justification: 'To prepare for team leadership responsibilities.',
+    organiser: 'L1A Internal Training Dept.',
+    venue: 'Company HQ - Training Room 3',
+    startDate: new Date('2024-08-05'),
+    endDate: new Date('2024-08-07'),
+    cost: 300, // Low cost, in-house
+    mode: 'in-house',
+    programType: 'leadership',
+    status: 'pending',
+    currentApprovalStep: 'supervisor',
+    approvalChain: [],
+    submittedDate: new Date('2024-07-18'),
+    lastUpdated: new Date('2024-07-18'),
   },
 ];

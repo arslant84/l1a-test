@@ -13,13 +13,25 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
-import { CalendarIcon, Loader2, Send, UserCircle, Briefcase, Mail, Building, Award, CalendarCheck2 } from 'lucide-react';
+import { CalendarIcon, Loader2, Send, UserCircle, Briefcase, Mail, Building, Award, CalendarCheck2, LayoutList, MapPinned } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useState, type ChangeEvent } from 'react';
-import type { TrainingRequestMode } from '@/lib/types';
+import type { TrainingRequestLocationMode, ProgramType } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+
+const locationModes: [TrainingRequestLocationMode, ...TrainingRequestLocationMode[]] = ['online', 'in-house', 'local', 'overseas'];
+const programTypes: [ProgramType, ...ProgramType[]] = [
+  'course', 
+  'conference/seminar/forum', 
+  'on-the-job attachment', 
+  'skg/fsa', 
+  'hse', 
+  'functional', 
+  'leadership', 
+  'specialized', 
+  'others'
+];
 
 const newRequestSchema = z.object({
   trainingTitle: z.string().min(5, { message: "Training title must be at least 5 characters." }).max(200, { message: "Training title must be at most 200 characters."}),
@@ -29,7 +41,8 @@ const newRequestSchema = z.object({
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
   cost: z.coerce.number().min(0, { message: "Cost must be a non-negative number." }),
-  mode: z.enum(['online', 'in-person', 'conference'] as [TrainingRequestMode, ...TrainingRequestMode[]], { required_error: "Mode of training is required." }),
+  mode: z.enum(locationModes, { required_error: "Mode of training is required." }),
+  programType: z.enum(programTypes, { required_error: "Type of program is required." }),
   previousRelevantTraining: z.string().max(1000, {message: "Previous training details must be at most 1000 characters."}).optional(),
   supportingDocuments: z.custom<FileList>().optional()
     .refine(files => !files || Array.from(files).every(file => file.size <= 5 * 1024 * 1024), `Max file size is 5MB.`)
@@ -96,6 +109,7 @@ export function NewRequestForm() {
       endDate: data.endDate,
       cost: data.cost,
       mode: data.mode,
+      programType: data.programType,
       previousRelevantTraining: data.previousRelevantTraining,
       supportingDocuments: documentNames,
     });
@@ -112,6 +126,26 @@ export function NewRequestForm() {
       setIsSubmitting(false);
     }
   };
+  
+  const programTypeDisplayNames: Record<ProgramType, string> = {
+    'course': 'Course',
+    'conference/seminar/forum': 'Conference/Seminar/Forum',
+    'on-the-job attachment': 'On-the-Job Attachment',
+    'skg/fsa': 'SKG/FSA',
+    'hse': 'HSE',
+    'functional': 'Functional',
+    'leadership': 'Leadership',
+    'specialized': 'Specialized',
+    'others': 'Others',
+  };
+
+  const locationModeDisplayNames: Record<TrainingRequestLocationMode, string> = {
+    'online': 'Online',
+    'in-house': 'In-House',
+    'local': 'Local (External)',
+    'overseas': 'Overseas (External)',
+  };
+
 
   return (
     <>
@@ -194,6 +228,9 @@ export function NewRequestForm() {
                   <FormControl>
                     <Input placeholder="e.g., Online, New York City, Local Training Center" {...field} />
                   </FormControl>
+                   <FormDescription>
+                    For 'Online' or 'In-House' mode, specify platform or building name.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -282,38 +319,60 @@ export function NewRequestForm() {
               )}
             />
           </div>
+          
+          <FormField
+            control={form.control}
+            name="cost"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Estimated Total Cost (USD)</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="e.g., 500" {...field} min="0" step="0.01" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-            <FormField
-              control={form.control}
-              name="cost"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Estimated Total Cost (USD)</FormLabel>
-                  <FormControl>
-                    <Input type="number" placeholder="e.g., 500" {...field} min="0" step="0.01" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <FormField
               control={form.control}
               name="mode"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Mode of Training</FormLabel>
+                  <FormLabel>Mode of Training / Location</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a mode" />
+                        <SelectValue placeholder="Select a mode/location" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="online">Online</SelectItem>
-                      <SelectItem value="in-person">In-Person</SelectItem>
-                      <SelectItem value="conference">Conference</SelectItem>
+                      {locationModes.map(value => (
+                        <SelectItem key={value} value={value}>{locationModeDisplayNames[value]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="programType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Type of Program</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select program type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                       {programTypes.map(value => (
+                        <SelectItem key={value} value={value}>{programTypeDisplayNames[value]}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

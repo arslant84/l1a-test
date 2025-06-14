@@ -4,7 +4,7 @@ export interface Employee {
   name: string;
   email: string;
   department: string;
-  role: 'employee' | 'supervisor' | 'thr' | 'ceo' | 'cm'; // Added thr, ceo, cm roles
+  role: 'employee' | 'supervisor' | 'thr' | 'ceo' | 'cm'; 
   avatarUrl?: string;
   managerId?: string; 
   position?: string;
@@ -14,7 +14,20 @@ export interface Employee {
 }
 
 export type TrainingRequestStatus = 'pending' | 'approved' | 'rejected';
-export type TrainingRequestMode = 'online' | 'in-person' | 'conference';
+// Updated TrainingRequestMode to be more location-centric
+export type TrainingRequestLocationMode = 'online' | 'in-house' | 'local' | 'overseas';
+// Added ProgramType based on L1A form's "Type of Program"
+export type ProgramType = 
+  | 'course' 
+  | 'conference/seminar/forum' 
+  | 'on-the-job attachment' 
+  | 'skg/fsa' 
+  | 'hse' 
+  | 'functional' 
+  | 'leadership' 
+  | 'specialized' 
+  | 'others';
+
 export type ApprovalStepRole = 'supervisor' | 'thr' | 'ceo';
 export type CurrentApprovalStep = ApprovalStepRole | 'completed';
 
@@ -38,13 +51,13 @@ export interface TrainingRequest {
   startDate: Date;
   endDate: Date;
   cost: number;
-  mode: TrainingRequestMode;
+  mode: TrainingRequestLocationMode; // Updated this to use the new type
+  programType: ProgramType; // Added new field
   previousRelevantTraining?: string;
   supportingDocuments?: { name: string; url?: string }[];
-  status: TrainingRequestStatus; // Overall status
-  currentApprovalStep: CurrentApprovalStep; // Whose turn it is or if completed
-  approvalChain: ApprovalAction[]; // History of approvals/rejections
+  status: TrainingRequestStatus; 
+  currentApprovalStep: CurrentApprovalStep; 
+  approvalChain: ApprovalAction[]; 
   submittedDate: Date;
   lastUpdated: Date;
 }
-

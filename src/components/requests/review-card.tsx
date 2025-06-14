@@ -1,17 +1,16 @@
 
 "use client";
-import type { TrainingRequest, ApprovalAction } from '@/lib/types';
+import type { TrainingRequest, ApprovalAction, TrainingRequestLocationMode, ProgramType } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, FileText, User, DollarSign, CalendarDays, Briefcase, MessageSquare, Info, Award, Edit3, BookOpen, MapPin, Users, ShieldCheck, Landmark } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, User, DollarSign, CalendarDays, Briefcase, MessageSquare, Info, Award, Edit3, BookOpen, MapPin, Users, ShieldCheck, Landmark, LayoutList, MapPinned } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Separator } from '../ui/separator';
 
 interface ReviewCardProps {
   request: TrainingRequest;
@@ -36,7 +35,6 @@ const getOverallStatusText = (request: TrainingRequest): string => {
      }
      return 'Rejected';
   }
-  // Pending status
   if (request.currentApprovalStep === 'supervisor') return 'Pending Supervisor';
   if (request.currentApprovalStep === 'thr') return 'Pending THR';
   if (request.currentApprovalStep === 'ceo') return 'Pending CEO';
@@ -55,20 +53,38 @@ export function ReviewCard({ request, isReadOnly = false }: ReviewCardProps) {
     const success = await updateRequestStatus(request.id, decision, notes);
     if (success) {
       toast({ title: `Request ${decision}`, description: `Request from ${request.employeeName} has been ${decision}.`});
-      setNotes(''); // Clear notes after action
+      setNotes(''); 
     } else {
       toast({ variant: "destructive", title: "Action Failed", description: "Could not update request status."});
     }
   };
   
   const getStatusVariant = (status: TrainingRequest['status'], currentStep: TrainingRequest['currentApprovalStep']): "default" | "secondary" | "destructive" | "outline" => {
-    if (status === 'approved') return 'default'; // default is primary (greenish)
+    if (status === 'approved') return 'default'; 
     if (status === 'rejected') return 'destructive';
-    // For pending, secondary (greyish)
     return 'secondary';
   };
 
   const canTakeAction = !isReadOnly && currentUser?.role === request.currentApprovalStep && request.status === 'pending';
+  
+  const programTypeDisplayNames: Record<ProgramType, string> = {
+    'course': 'Course',
+    'conference/seminar/forum': 'Conference/Seminar/Forum',
+    'on-the-job attachment': 'On-the-Job Attachment',
+    'skg/fsa': 'SKG/FSA',
+    'hse': 'HSE',
+    'functional': 'Functional',
+    'leadership': 'Leadership',
+    'specialized': 'Specialized',
+    'others': 'Others',
+  };
+
+  const locationModeDisplayNames: Record<TrainingRequestLocationMode, string> = {
+    'online': 'Online',
+    'in-house': 'In-House',
+    'local': 'Local (External)',
+    'overseas': 'Overseas (External)',
+  };
 
   return (
     <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
@@ -104,8 +120,12 @@ export function ReviewCard({ request, isReadOnly = false }: ReviewCardProps) {
             <div><strong>Dates:</strong> {format(request.startDate, 'MMM d')} - {format(request.endDate, 'MMM d, yyyy')}</div>
           </div>
           <div className="flex items-start space-x-2">
-            <Briefcase className="h-4 w-4 text-muted-foreground mt-0.5" />
-            <div><strong>Mode:</strong> <span className="capitalize">{request.mode}</span></div>
+            <MapPinned className="h-4 w-4 text-muted-foreground mt-0.5" />
+            <div><strong>Mode/Location:</strong> <span className="capitalize">{locationModeDisplayNames[request.mode]}</span></div>
+          </div>
+           <div className="flex items-start space-x-2">
+            <LayoutList className="h-4 w-4 text-muted-foreground mt-0.5" />
+            <div><strong>Program Type:</strong> <span className="capitalize">{programTypeDisplayNames[request.programType]}</span></div>
           </div>
         </div>
 

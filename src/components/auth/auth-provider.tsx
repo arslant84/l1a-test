@@ -2,7 +2,7 @@
 "use client";
 import type { ReactNode } from 'react';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import type { Employee, TrainingRequest, TrainingRequestStatus, ApprovalAction, CurrentApprovalStep, ApprovalStepRole } from '@/lib/types';
+import type { Employee, TrainingRequest, TrainingRequestStatus, ApprovalAction, CurrentApprovalStep, ApprovalStepRole, ProgramType, TrainingRequestLocationMode } from '@/lib/types';
 import { mockEmployees, mockTrainingRequests as initialMockTrainingRequests } from '@/lib/mock-data';
 
 interface AuthContextType {
@@ -122,7 +122,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       prevRequests.map(req => {
         if (req.id === requestId && req.currentApprovalStep !== 'completed' && currentUser.role === req.currentApprovalStep) {
           const newAction: ApprovalAction = {
-            stepRole: req.currentApprovalStep as ApprovalStepRole, // Cast, as 'completed' is filtered out
+            stepRole: req.currentApprovalStep as ApprovalStepRole, 
             decision,
             userId: currentUser.id,
             userName: currentUser.name,
@@ -143,11 +143,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 nextApprovalStep = 'thr';
                 break;
               case 'thr':
-                // CEO approval if cost > 2000 OR (mode is conference AND venue is not explicitly online/local)
-                const requiresCeoApproval = req.cost > 2000 || 
-                                            (req.mode === 'conference' && 
-                                             !req.venue.toLowerCase().includes('online') && 
-                                             !req.venue.toLowerCase().includes('local training center')); // Simplified venue check
+                // CEO approval if cost > 2000 OR mode is 'overseas'
+                const requiresCeoApproval = req.cost > 2000 || req.mode === 'overseas';
                 if (requiresCeoApproval) {
                   nextApprovalStep = 'ceo';
                 } else {
