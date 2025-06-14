@@ -56,7 +56,7 @@ export function SidebarNav() {
     <SidebarMenu className="p-2">
       {navItems.map((item) => (
         <SidebarMenuItem key={item.href}>
-          <Link href={item.href} passHref legacyBehavior>
+          <Link href={item.href}>
             <SidebarMenuButton
               asChild
               isActive={pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))}
@@ -72,7 +72,7 @@ export function SidebarNav() {
         </SidebarMenuItem>
       ))}
       <SidebarMenuItem className="mt-auto pt-2 border-t border-sidebar-border">
-         <Link href="/settings" passHref legacyBehavior>
+         <Link href="/settings">
             <SidebarMenuButton
               asChild
               isActive={pathname === '/settings'}
