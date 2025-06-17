@@ -5,12 +5,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import React from 'react'; // Import React
 
 interface EmployeeTableProps {
   employees: Employee[];
 }
 
-export function EmployeeTable({ employees }: EmployeeTableProps) {
+function EmployeeTableComponent({ employees }: EmployeeTableProps) {
   const getInitials = (name: string) => {
     const names = name.split(' ');
     let initials = names[0].substring(0, 1).toUpperCase();
@@ -57,3 +58,5 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
     </ScrollArea>
   );
 }
+
+export const EmployeeTable = React.memo(EmployeeTableComponent);

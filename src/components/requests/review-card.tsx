@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { useState } from 'react';
+import React, { useState } from 'react'; // Import React
 import { format } from 'date-fns';
 import { CheckCircle, XCircle, FileText, User, DollarSign, CalendarDays, Briefcase, MessageSquare, Info, Award, Edit3, BookOpen, MapPin, Users, ShieldCheck, Landmark, LayoutList, MapPinned } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
@@ -42,7 +42,7 @@ const getOverallStatusText = (request: TrainingRequest): string => {
 };
 
 
-export function ReviewCard({ request, isReadOnly = false }: ReviewCardProps) {
+function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
   const [notes, setNotes] = useState('');
   const { updateRequestStatus, users, currentUser } = useAuth();
   const { toast } = useToast();
@@ -247,3 +247,5 @@ export function ReviewCard({ request, isReadOnly = false }: ReviewCardProps) {
     </Card>
   );
 }
+
+export const ReviewCard = React.memo(ReviewCardComponent);

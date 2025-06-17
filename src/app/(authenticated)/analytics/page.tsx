@@ -3,11 +3,14 @@
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart"
-import { BarChart, PieChart, Cell, Pie, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts';
-import { AlertTriangle, Hourglass, CheckCircle2, XCircle, Banknote, CalendarClock, Users2, Building2, BarChart3, PieChartIcon } from 'lucide-react';
+// Import Bar and Pie directly for types, dynamic imports will handle loading
+import type { BarChartProps, PieChartProps } from 'recharts';
+import { Cell, Pie, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts'; // Keep these for non-dynamic parts
+import { AlertTriangle, Hourglass, CheckCircle2, XCircle, Banknote, CalendarClock, Users2, Building2, BarChart3, PieChartIcon, Loader2 } from 'lucide-react';
 import type { Employee } from '@/lib/types';
 import { useMemo } from 'react';
 import { format, subMonths, getYear, getMonth, isWithinInterval } from 'date-fns';
+import dynamic from 'next/dynamic';
 
 const CHART_COLORS = {
   pending: "hsl(var(--chart-1))",
@@ -16,6 +19,16 @@ const CHART_COLORS = {
   department1: "hsl(var(--chart-4))",
   department2: "hsl(var(--chart-5))",
 };
+
+const DynamicBarChart = dynamic(() => import('recharts').then(mod => mod.BarChart) as Promise<React.ComponentType<BarChartProps>>, {
+  loading: () => <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <span className="ml-2">Loading chart...</span></div>,
+  ssr: false
+});
+
+const DynamicPieChart = dynamic(() => import('recharts').then(mod => mod.PieChart) as Promise<React.ComponentType<PieChartProps>>, {
+  loading: () => <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <span className="ml-2">Loading chart...</span></div>,
+  ssr: false
+});
 
 
 export default function AnalyticsPage() {
@@ -125,7 +138,6 @@ export default function AnalyticsPage() {
   
   const chartConfigSpending = {
      "Total Cost": { label: "Total Cost", color: "hsl(var(--chart-1))" },
-     // Dynamically add departments to config for legend, if needed, or rely on Bar `nameKey`
   } as const;
 
 
@@ -190,7 +202,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent className="h-[350px]">
             <ChartContainer config={chartConfigStatus} className="min-h-[300px]">
-              <PieChart>
+              <DynamicPieChart>
                 <ChartTooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
                 <Pie data={requestsByStatusData} dataKey="value" nameKey="name" labelLine={false} label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}>
                    {requestsByStatusData.map((entry, index) => (
@@ -198,7 +210,7 @@ export default function AnalyticsPage() {
                   ))}
                 </Pie>
                 <ChartLegend content={<ChartLegendContent />} />
-              </PieChart>
+              </DynamicPieChart>
             </ChartContainer>
           </CardContent>
         </Card>
@@ -213,7 +225,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent className="h-[350px]">
             <ChartContainer config={chartConfigMonthly} className="min-h-[300px]">
-              <BarChart data={monthlySubmissionsData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+              <DynamicBarChart data={monthlySubmissionsData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" />
                 <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-30} textAnchor="end" height={50} interval={0} fontSize={10} />
                 <YAxis tickLine={false} axisLine={false} tickMargin={8} width={30} />
@@ -221,7 +233,7 @@ export default function AnalyticsPage() {
                 <Bar dataKey="Submissions" fill="var(--color-Submissions)" radius={4}>
                    <LabelList dataKey="Submissions" position="top" offset={5} fontSize={10} formatter={(value: number) => value > 0 ? value : ''} />
                 </Bar>
-              </BarChart>
+              </DynamicBarChart>
             </ChartContainer>
           </CardContent>
         </Card>
@@ -238,7 +250,7 @@ export default function AnalyticsPage() {
           <CardContent className="h-[400px]">
              {spendingByDepartmentData.length > 0 ? (
                 <ChartContainer config={chartConfigSpending} className="min-h-[350px]">
-                  <BarChart data={spendingByDepartmentData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <DynamicBarChart data={spendingByDepartmentData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid horizontal={false} strokeDasharray="3 3" />
                     <XAxis type="number" tickLine={false} axisLine={false} tickMargin={8} />
                     <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={100} />
@@ -250,7 +262,7 @@ export default function AnalyticsPage() {
                       <LabelList dataKey="Total Cost" position="right" offset={8} fontSize={10} formatter={(value: number) => `$${value.toLocaleString()}`} />
                     </Bar>
                     <ChartLegend content={<ChartLegendContent nameKey="name" />} />
-                  </BarChart>
+                  </DynamicBarChart>
                 </ChartContainer>
              ) : (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
