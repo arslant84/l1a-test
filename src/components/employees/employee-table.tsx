@@ -11,6 +11,14 @@ interface EmployeeTableProps {
   employees: Employee[];
 }
 
+const roleDisplayNames: Record<Employee['role'], string> = {
+  employee: 'Employee',
+  supervisor: 'Supervisor',
+  thr: 'THR',
+  ceo: 'CEO',
+  cm: 'CM'
+};
+
 function EmployeeTableComponent({ employees }: EmployeeTableProps) {
   const getInitials = (name: string) => {
     const names = name.split(' ');
@@ -22,7 +30,7 @@ function EmployeeTableComponent({ employees }: EmployeeTableProps) {
   };
 
   return (
-    <ScrollArea className="h-[calc(100vh-18rem)] sm:h-auto sm:max-h-[70vh] rounded-md border">
+    <ScrollArea className="h-[calc(100vh-22rem)] sm:h-auto sm:max-h-[70vh] rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -47,8 +55,8 @@ function EmployeeTableComponent({ employees }: EmployeeTableProps) {
               <TableCell>{employee.email}</TableCell>
               <TableCell>{employee.department}</TableCell>
               <TableCell className="text-center">
-                <Badge variant={employee.role === 'supervisor' ? 'default' : 'secondary'} className="capitalize">
-                  {employee.role}
+                <Badge variant={employee.role === 'supervisor' ? 'default' : 'secondary'}>
+                  {roleDisplayNames[employee.role] || employee.role}
                 </Badge>
               </TableCell>
             </TableRow>

@@ -60,7 +60,7 @@ export default function LoginPage() {
     supervisor: 'Supervisor',
     thr: 'THR',
     ceo: 'CEO',
-    cm: 'Contract Manager (CM)'
+    cm: 'CM'
   };
 
 
@@ -68,7 +68,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="items-center text-center">
-          <Logo className="mb-4" iconClassName="h-8 w-8" textClassName="text-2xl" />
+          <Logo className="mb-6" iconClassName="h-10 w-10" textClassName="text-3xl" />
           <CardTitle className="font-headline text-2xl">Sign In</CardTitle>
           <CardDescription>Access your L1A Approve account. Use a mock email.</CardDescription>
         </CardHeader>
@@ -82,7 +82,7 @@ export default function LoginPage() {
                   <FormItem>
                     <FormLabel>Email Address</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="e.g., alice@example.com" {...field} />
+                      <Input type="email" placeholder="e.g., alice@example.com" {...field} className="text-sm" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

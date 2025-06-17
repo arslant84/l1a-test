@@ -1,6 +1,6 @@
 
 "use client";
-import type { TrainingRequest, ApprovalAction, TrainingRequestLocationMode, ProgramType } from '@/lib/types';
+import type { TrainingRequest, ApprovalAction, TrainingRequestLocationMode, ProgramType, ApprovalStepRole } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,12 @@ interface ReviewCardProps {
   isReadOnly?: boolean;
 }
 
+const approvalStepRoleDisplay: Record<ApprovalStepRole, string> = {
+  supervisor: 'Supervisor',
+  thr: 'THR',
+  ceo: 'CEO',
+};
+
 const getRoleIcon = (role: ApprovalAction['stepRole']) => {
   switch(role) {
     case 'supervisor': return Users;
@@ -31,13 +37,14 @@ const getOverallStatusText = (request: TrainingRequest): string => {
   if (request.status === 'rejected') {
      const lastAction = request.approvalChain[request.approvalChain.length - 1];
      if (lastAction?.decision === 'rejected') {
-       return `Rejected by ${lastAction.stepRole}`;
+       const roleName = approvalStepRoleDisplay[lastAction.stepRole] || lastAction.stepRole;
+       return `Rejected by ${roleName}`;
      }
      return 'Rejected';
   }
-  if (request.currentApprovalStep === 'supervisor') return 'Pending Supervisor';
-  if (request.currentApprovalStep === 'thr') return 'Pending THR';
-  if (request.currentApprovalStep === 'ceo') return 'Pending CEO';
+  if (request.currentApprovalStep === 'supervisor') return `Pending ${approvalStepRoleDisplay['supervisor']}`;
+  if (request.currentApprovalStep === 'thr') return `Pending ${approvalStepRoleDisplay['thr']}`;
+  if (request.currentApprovalStep === 'ceo') return `Pending ${approvalStepRoleDisplay['ceo']}`;
   return 'Pending';
 };
 
@@ -96,7 +103,7 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
               Submitted by: {request.employeeName} on {format(request.submittedDate, 'MMM d, yyyy')}
             </CardDescription>
           </div>
-          <Badge variant={getStatusVariant(request.status, request.currentApprovalStep)} className="capitalize text-xs px-2 py-1">
+          <Badge variant={getStatusVariant(request.status, request.currentApprovalStep)} className="whitespace-nowrap text-xs px-2 py-1">
             {getOverallStatusText(request)}
           </Badge>
         </div>
@@ -200,12 +207,13 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
               <AccordionContent className="text-xs space-y-2 p-2 bg-muted/30 rounded-md">
                 {request.approvalChain.map((action, index) => {
                   const ActionIcon = getRoleIcon(action.stepRole);
+                  const roleName = approvalStepRoleDisplay[action.stepRole] || action.stepRole;
                   return (
                     <div key={index} className="border-b border-dashed border-border pb-2 mb-2 last:border-b-0 last:pb-0 last:mb-0">
                       <div className="flex items-center justify-between mb-1">
                          <div className="flex items-center gap-1.5">
                             <ActionIcon className="h-4 w-4 text-muted-foreground"/>
-                            <span className="font-semibold capitalize">{action.stepRole}</span>
+                            <span className="font-semibold">{roleName}</span>
                             <span>({action.userName})</span>
                          </div>
                          <Badge variant={action.decision === 'approved' ? 'default' : 'destructive'} className="text-xs capitalize">{action.decision}</Badge>

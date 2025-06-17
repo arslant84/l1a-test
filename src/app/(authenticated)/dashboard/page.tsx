@@ -1,7 +1,7 @@
 
 "use client";
 import { useAuth } from '@/hooks/use-auth';
-import type { TrainingRequest } from '@/lib/types';
+import type { TrainingRequest, ApprovalStepRole } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { PlusCircle, Info } from 'lucide-react';
+
+const approvalStepRoleDisplay: Record<ApprovalStepRole, string> = {
+  supervisor: 'Supervisor',
+  thr: 'THR',
+  ceo: 'CEO',
+};
 
 export default function DashboardPage() {
   const { currentUser, trainingRequests } = useAuth();
@@ -22,14 +28,15 @@ export default function DashboardPage() {
     if (request.status === 'rejected') {
       const lastAction = request.approvalChain[request.approvalChain.length - 1];
       if (lastAction?.decision === 'rejected') {
-        return `Rejected by ${lastAction.stepRole}`;
+        const roleName = approvalStepRoleDisplay[lastAction.stepRole] || lastAction.stepRole;
+        return `Rejected by ${roleName}`;
       }
       return 'Rejected';
     }
     // Pending status
     if (request.currentApprovalStep === 'supervisor') return 'Pending Supervisor';
-    if (request.currentApprovalStep === 'thr') return 'Pending THR';
-    if (request.currentApprovalStep === 'ceo') return 'Pending CEO';
+    if (request.currentApprovalStep === 'thr') return `Pending ${approvalStepRoleDisplay['thr']}`;
+    if (request.currentApprovalStep === 'ceo') return `Pending ${approvalStepRoleDisplay['ceo']}`;
     return 'Pending Review';
   };
   
@@ -47,7 +54,7 @@ export default function DashboardPage() {
   };
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 p-1 md:p-2">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-headline">My Training Requests</h1>
@@ -69,7 +76,7 @@ export default function DashboardPage() {
         <CardContent>
           {userRequests.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Info className="h-16 w-16 text-muted-foreground mb-6" />
+              <Info className="h-20 w-20 text-muted-foreground mb-8" />
               <p className="text-xl font-semibold mb-2">No Requests Found</p>
               <p className="text-muted-foreground mb-6">You haven't submitted any training requests yet.</p>
               <Button asChild variant="outline">
@@ -98,7 +105,7 @@ export default function DashboardPage() {
                       <TableCell>{format(request.startDate, 'MMM d, yyyy')} - {format(request.endDate, 'MMM d, yyyy')}</TableCell>
                       <TableCell className="text-right">${request.cost.toFixed(2)}</TableCell>
                       <TableCell className="text-center">
-                        <Badge variant={getStatusVariant(request.status)} className="capitalize">
+                        <Badge variant={getStatusVariant(request.status)} className="whitespace-nowrap">
                           {getStatusText(request)}
                         </Badge>
                       </TableCell>
