@@ -1,6 +1,9 @@
 
 import type { Employee, TrainingRequest, ApprovalAction } from './types';
 
+const threeMonthsAgo = new Date();
+threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
 export const mockEmployees: Employee[] = [
   {
     id: 'emp1',
@@ -14,6 +17,9 @@ export const mockEmployees: Employee[] = [
     staffNo: 'E00123',
     academicQualification: 'B.Sc. Computer Science',
     dateJoined: new Date('2020-06-15'),
+    passwordLastChanged: threeMonthsAgo,
+    prefersEmailNotifications: true,
+    prefersInAppNotifications: true,
   },
   {
     id: 'emp2',
@@ -27,6 +33,9 @@ export const mockEmployees: Employee[] = [
     staffNo: 'E00456',
     academicQualification: 'B.A. Marketing',
     dateJoined: new Date('2021-01-20'),
+    passwordLastChanged: new Date('2024-01-10'),
+    prefersEmailNotifications: true,
+    prefersInAppNotifications: false,
   },
   {
     id: 'sup1',
@@ -39,6 +48,9 @@ export const mockEmployees: Employee[] = [
     staffNo: 'S00789',
     academicQualification: 'M.Sc. Software Engineering',
     dateJoined: new Date('2015-03-01'),
+    passwordLastChanged: new Date('2023-12-01'),
+    prefersEmailNotifications: true,
+    prefersInAppNotifications: true,
   },
   {
     id: 'sup2',
@@ -51,6 +63,9 @@ export const mockEmployees: Employee[] = [
     staffNo: 'S00101',
     academicQualification: 'MBA',
     dateJoined: new Date('2018-09-10'),
+    passwordLastChanged: threeMonthsAgo,
+    prefersEmailNotifications: false,
+    prefersInAppNotifications: true,
   },
   {
     id: 'emp3',
@@ -64,6 +79,9 @@ export const mockEmployees: Employee[] = [
     staffNo: 'E00112',
     academicQualification: 'B.Eng. Electrical Engineering',
     dateJoined: new Date('2022-07-01'),
+    passwordLastChanged: new Date('2024-02-15'),
+    prefersEmailNotifications: true,
+    prefersInAppNotifications: true,
   },
   {
     id: 'thr1',
@@ -76,6 +94,9 @@ export const mockEmployees: Employee[] = [
     staffNo: 'THR001',
     academicQualification: 'MHRM',
     dateJoined: new Date('2019-05-10'),
+    passwordLastChanged: new Date('2023-11-20'),
+    prefersEmailNotifications: true,
+    prefersInAppNotifications: true,
   },
   {
     id: 'ceo1',
@@ -88,6 +109,9 @@ export const mockEmployees: Employee[] = [
     staffNo: 'CEO001',
     academicQualification: 'Ph.D. Business Administration',
     dateJoined: new Date('2010-01-01'),
+    passwordLastChanged: new Date('2024-03-01'),
+    prefersEmailNotifications: true,
+    prefersInAppNotifications: true,
   },
    {
     id: 'cm1',
@@ -100,6 +124,9 @@ export const mockEmployees: Employee[] = [
     staffNo: 'CM001',
     academicQualification: 'LLB',
     dateJoined: new Date('2017-11-15'),
+    passwordLastChanged: new Date('2024-01-01'),
+    prefersEmailNotifications: false,
+    prefersInAppNotifications: false,
   },
 ];
 

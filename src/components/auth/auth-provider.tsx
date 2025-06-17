@@ -10,13 +10,14 @@ import {
   addTrainingRequestAction, 
   updateRequestStatusAction 
 } from '@/actions/dataActions';
-// Removed: import { parseTrainingRequest, parseEmployee } from '@/lib/db';
+
 
 interface AuthContextType {
   currentUser: Employee | null;
   isLoading: boolean;
   login: (email: string, role: Employee['role']) => Promise<boolean>;
   logout: () => void;
+  reloadCurrentUser: () => Promise<void>; // Added to refresh user data
   trainingRequests: TrainingRequest[];
   addTrainingRequest: (request: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain'>) => Promise<boolean>;
   updateRequestStatus: (requestId: string, decision: 'approved' | 'rejected', notes?: string) => Promise<boolean>;
@@ -39,24 +40,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       const fetchedUsers = await fetchAllUsersAction();
-      setUsers(fetchedUsers); // Data from action is already parsed
+      setUsers(fetchedUsers); 
 
       const fetchedRequests = await fetchAllTrainingRequestsAction();
-      setTrainingRequests(fetchedRequests); // Data from action is already parsed
+      setTrainingRequests(fetchedRequests);
 
       if (loggedInUser) {
-         // Re-fetch current user from DB to ensure data consistency, especially after potential DB updates
         const freshUser = fetchedUsers.find(u => u.id === loggedInUser.id);
         setCurrentUser(freshUser || null);
       }
 
     } catch (error) {
       console.error("Failed to load initial data:", error);
-      // Potentially set an error state here to show to the user
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  const reloadCurrentUser = useCallback(async () => {
+    if (!currentUser) return;
+    setIsLoading(true);
+    try {
+      // Re-fetch the current user's data from the backend
+      const freshUser = await loginUserAction(currentUser.email, currentUser.role);
+      if (freshUser) {
+        setCurrentUser(freshUser);
+        // Optionally, re-fetch all users and requests if other parts of their data might have changed system-wide
+        // For settings changes that only affect the current user, just updating currentUser might be enough.
+        // However, to ensure consistency, especially if the user's name changed (which appears in requests),
+        // reloading all data is safer.
+        await loadInitialData(freshUser);
+      }
+    } catch (error) {
+      console.error("Failed to reload current user:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentUser, loadInitialData]);
   
   // Effect to load data on initial mount and try to re-authenticate
   useEffect(() => {
@@ -68,9 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const storedUserRole = localStorage.getItem(SESSION_USER_ROLE_KEY) as Employee['role'] | null;
         
         if (storedUserId && storedUserRole) {
-           // Instead of full user object, find from all users fetched, then get by email and role.
-           // This is a simplified re-auth. A real app would use tokens/sessions.
-          const allDbUsers = await fetchAllUsersAction(); // Fetch users via action
+          const allDbUsers = await fetchAllUsersAction(); 
           const potentialUser = allDbUsers.find(u => u.id === storedUserId && u.role === storedUserRole);
           if (potentialUser) {
              sessionUser = await loginUserAction(potentialUser.email, potentialUser.role);
@@ -82,7 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (e) {
         console.error("Error during re-authentication:", e);
       } finally {
-        await loadInitialData(sessionUser); // Load data regardless of re-auth success for now
+        await loadInitialData(sessionUser); 
         setIsLoading(false);
       }
     };
@@ -96,9 +114,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const user = await loginUserAction(email, role);
       if (user) {
         setCurrentUser(user);
-        localStorage.setItem(SESSION_USER_ID_KEY, user.id); // Store ID for re-auth
-        localStorage.setItem(SESSION_USER_ROLE_KEY, user.role); // Store role for re-auth
-        await loadInitialData(user); // Reload all data after login
+        localStorage.setItem(SESSION_USER_ID_KEY, user.id); 
+        localStorage.setItem(SESSION_USER_ROLE_KEY, user.role); 
+        await loadInitialData(user); 
         return true;
       }
       setCurrentUser(null);
@@ -117,10 +135,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setCurrentUser(null);
     localStorage.removeItem(SESSION_USER_ID_KEY);
     localStorage.removeItem(SESSION_USER_ROLE_KEY);
-    // Optionally clear users and requests or let them be refetched on next login
     setUsers([]);
     setTrainingRequests([]);
-    // No need to redirect here, layout will handle it.
   }, []);
 
   const addTrainingRequest = useCallback(async (requestData: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain'>): Promise<boolean> => {
@@ -129,7 +145,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const success = await addTrainingRequestAction(requestData, currentUser);
       if (success) {
-        await loadInitialData(currentUser); // Reload data to get the new request
+        await loadInitialData(currentUser); 
       }
       return success;
     } catch (error) {
@@ -146,7 +162,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const success = await updateRequestStatusAction(requestId, decision, notes, currentUser);
       if (success) {
-        await loadInitialData(currentUser); // Reload data to reflect changes
+        await loadInitialData(currentUser); 
       }
       return success;
     } catch (error) {
@@ -159,7 +175,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
 
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading, login, logout, trainingRequests, addTrainingRequest, updateRequestStatus, users }}>
+    <AuthContext.Provider value={{ currentUser, isLoading, login, logout, reloadCurrentUser, trainingRequests, addTrainingRequest, updateRequestStatus, users }}>
       {children}
     </AuthContext.Provider>
   );

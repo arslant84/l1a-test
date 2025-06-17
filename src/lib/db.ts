@@ -35,7 +35,10 @@ async function initializeDb(db: Database) {
       position TEXT,
       staffNo TEXT UNIQUE,
       academicQualification TEXT,
-      dateJoined TEXT 
+      dateJoined TEXT,
+      passwordLastChanged TEXT,
+      prefersEmailNotifications INTEGER DEFAULT 1,
+      prefersInAppNotifications INTEGER DEFAULT 1
     );
   `);
 
@@ -71,7 +74,7 @@ async function seedDatabase(db: Database) {
   const employeeCount = await db.get('SELECT COUNT(*) as count FROM employees');
   if (employeeCount && employeeCount.count === 0) {
     const stmt = await db.prepare(
-      'INSERT INTO employees (id, name, email, department, role, avatarUrl, managerId, position, staffNo, academicQualification, dateJoined) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO employees (id, name, email, department, role, avatarUrl, managerId, position, staffNo, academicQualification, dateJoined, passwordLastChanged, prefersEmailNotifications, prefersInAppNotifications) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     for (const emp of mockEmployees) {
       await stmt.run(
@@ -85,7 +88,10 @@ async function seedDatabase(db: Database) {
         emp.position,
         emp.staffNo,
         emp.academicQualification,
-        emp.dateJoined ? emp.dateJoined.toISOString() : null
+        emp.dateJoined ? emp.dateJoined.toISOString() : null,
+        emp.passwordLastChanged ? emp.passwordLastChanged.toISOString() : null,
+        emp.prefersEmailNotifications ? 1 : 0,
+        emp.prefersInAppNotifications ? 1 : 0
       );
     }
     await stmt.finalize();
@@ -130,6 +136,9 @@ export function parseEmployee(dbEmployee: any): Employee {
   return {
     ...dbEmployee,
     dateJoined: dbEmployee.dateJoined ? new Date(dbEmployee.dateJoined) : undefined,
+    passwordLastChanged: dbEmployee.passwordLastChanged ? new Date(dbEmployee.passwordLastChanged) : null,
+    prefersEmailNotifications: !!dbEmployee.prefersEmailNotifications,
+    prefersInAppNotifications: !!dbEmployee.prefersInAppNotifications,
   };
 }
 

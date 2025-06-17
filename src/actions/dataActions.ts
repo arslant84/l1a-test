@@ -139,3 +139,72 @@ export async function updateRequestStatusAction(
     return false;
   }
 }
+
+export async function updateUserProfileNameAction(userId: string, newName: string): Promise<boolean> {
+  const db = await getDb();
+  try {
+    const result = await db.run('UPDATE employees SET name = ? WHERE id = ?', newName, userId);
+    if (result.changes && result.changes > 0) {
+      revalidatePath('/settings');
+      revalidatePath('/(authenticated)', 'layout'); // Revalidate layout to update UserNav potentially
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Failed to update user name:", error);
+    return false;
+  }
+}
+
+export async function updateUserAvatarAction(userId: string, avatarUrl: string): Promise<boolean> {
+  const db = await getDb();
+  try {
+    const result = await db.run('UPDATE employees SET avatarUrl = ? WHERE id = ?', avatarUrl, userId);
+     if (result.changes && result.changes > 0) {
+      revalidatePath('/settings');
+      revalidatePath('/(authenticated)', 'layout');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Failed to update user avatar:", error);
+    return false;
+  }
+}
+
+export async function updateUserPasswordAction(userId: string): Promise<boolean> {
+  // In a real app, this would involve hashing the new password, verifying the old one, etc.
+  // For now, we'll just update the passwordLastChanged timestamp.
+  const db = await getDb();
+  try {
+    const result = await db.run('UPDATE employees SET passwordLastChanged = ? WHERE id = ?', new Date().toISOString(), userId);
+     if (result.changes && result.changes > 0) {
+      revalidatePath('/settings');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Failed to update password last changed date:", error);
+    return false;
+  }
+}
+
+export async function updateUserNotificationPreferenceAction(
+  userId: string,
+  preferenceType: 'email' | 'inApp',
+  value: boolean
+): Promise<boolean> {
+  const db = await getDb();
+  const column = preferenceType === 'email' ? 'prefersEmailNotifications' : 'prefersInAppNotifications';
+  try {
+    const result = await db.run(`UPDATE employees SET ${column} = ? WHERE id = ?`, value ? 1 : 0, userId);
+    if (result.changes && result.changes > 0) {
+      revalidatePath('/settings');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error(`Failed to update ${preferenceType} notification preference:`, error);
+    return false;
+  }
+}
