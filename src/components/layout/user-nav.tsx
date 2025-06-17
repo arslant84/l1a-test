@@ -41,7 +41,7 @@ export function UserNav() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-          <Avatar className="h-9 w-9">
+          <Avatar className="h-9 w-9" key={currentUser.avatarUrl}>
             <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} data-ai-hint="user avatar" />
             <AvatarFallback>{getInitials(currentUser.name)}</AvatarFallback>
           </Avatar>
@@ -58,7 +58,7 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => router.push('/settings')}> {/* Placeholder for profile/settings */}
+          <DropdownMenuItem onClick={() => router.push('/settings')}>
             <UserCircle className="mr-2 h-4 w-4" />
             <span>Profile</span>
           </DropdownMenuItem>

@@ -134,7 +134,9 @@ export default function SettingsPage() {
   const handlePasswordChangeSubmit: SubmitHandler<PasswordFormValues> = async (data) => {
     if (!currentUser) return;
     setIsChangingPassword(true);
-    const success = await updateUserPasswordAction(currentUser.id);
+    // In a real app, data.currentPassword and data.newPassword would be sent to the backend for verification and update.
+    // For this prototype, we'll just simulate success and update the passwordLastChanged timestamp.
+    const success = await updateUserPasswordAction(currentUser.id); // This action now just updates the timestamp
     if (success) {
       toast({ title: "Password Updated", description: "Your password has been successfully changed." });
       await reloadCurrentUser();
@@ -174,7 +176,7 @@ export default function SettingsPage() {
             <Form {...profileForm}>
               <form onSubmit={profileForm.handleSubmit(handleProfileSave)} className="space-y-6">
                 <div className="flex flex-col items-center space-y-4">
-                  <Avatar className="h-24 w-24">
+                  <Avatar className="h-24 w-24" key={currentUser.avatarUrl}>
                     <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} data-ai-hint="profile picture user" />
                     <AvatarFallback className="text-3xl">{getInitials(currentUser.name)}</AvatarFallback>
                   </Avatar>
@@ -338,4 +340,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
