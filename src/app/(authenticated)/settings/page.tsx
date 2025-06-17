@@ -1,6 +1,6 @@
 
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -20,7 +20,7 @@ import {
   updateUserPasswordAction, 
   updateUserNotificationPreferenceAction 
 } from '@/actions/dataActions';
-import { UserCircle, Mail, Briefcase, KeyRound, Bell, Loader2 } from "lucide-react";
+import { UserCircle, Mail, Briefcase, KeyRound, Bell, Loader2, UploadCloud } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 
 const profileFormSchema = z.object({
@@ -45,6 +45,7 @@ export default function SettingsPage() {
   const [isSavingName, setIsSavingName] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -91,15 +92,26 @@ export default function SettingsPage() {
     const success = await updateUserProfileNameAction(currentUser.id, data.name);
     if (success) {
       toast({ title: "Profile Updated", description: "Your name has been successfully updated." });
-      await reloadCurrentUser(); // Reload user data to reflect changes
+      await reloadCurrentUser(); 
     } else {
       toast({ variant: "destructive", title: "Update Failed", description: "Could not update your name." });
     }
     setIsSavingName(false);
   };
   
-  const handleChangePicture = async () => {
-    if(!currentUser) return;
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handlePictureFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!currentUser) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // For prototyping: Show toast, then proceed with placeholder cycling.
+    // In a real app, you'd upload `file` here.
+    toast({ title: "Picture Selected (Simulation)", description: `File "${file.name}" was chosen. Avatar will update with a new placeholder.` });
+
     // Simulate changing picture by cycling through a few placeholders
     const currentPicNumber = currentUser.avatarUrl?.match(/(\d+)x\1/)?.[1];
     const nextSize = currentPicNumber === '100' ? '150' : currentPicNumber === '150' ? '200' : '100';
@@ -107,18 +119,21 @@ export default function SettingsPage() {
     
     const success = await updateUserAvatarAction(currentUser.id, newAvatarUrl);
     if (success) {
-      toast({ title: "Picture Updated", description: "Your profile picture has been changed." });
+      toast({ title: "Picture Updated", description: "Your profile picture has been changed (using a placeholder)." });
       await reloadCurrentUser();
     } else {
       toast({ variant: "destructive", title: "Update Failed", description: "Could not update picture." });
     }
+    // Reset file input value so onChange fires again if the same file is selected
+    if(fileInputRef.current) {
+        fileInputRef.current.value = "";
+    }
   };
+
 
   const handlePasswordChangeSubmit: SubmitHandler<PasswordFormValues> = async (data) => {
     if (!currentUser) return;
     setIsChangingPassword(true);
-    // In a real app: verify data.currentPassword, then save newPassword securely.
-    // For this demo, we'll just call the action that updates the timestamp.
     const success = await updateUserPasswordAction(currentUser.id);
     if (success) {
       toast({ title: "Password Updated", description: "Your password has been successfully changed." });
@@ -139,12 +154,11 @@ export default function SettingsPage() {
       await reloadCurrentUser();
     } else {
       toast({ variant: "destructive", title: "Update Failed", description: "Could not save preference." });
-      // Revert UI if save fails (optional, as reloadCurrentUser will fetch fresh state)
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 p-6 md:p-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight font-headline">Settings</h1>
         <p className="text-muted-foreground">Manage your account settings and preferences.</p>
@@ -164,7 +178,16 @@ export default function SettingsPage() {
                     <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} data-ai-hint="profile picture user" />
                     <AvatarFallback className="text-3xl">{getInitials(currentUser.name)}</AvatarFallback>
                   </Avatar>
-                  <Button variant="outline" size="sm" type="button" onClick={handleChangePicture}>Change Picture</Button>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handlePictureFileSelected} 
+                    accept="image/*" 
+                    className="hidden" 
+                  />
+                  <Button variant="outline" size="sm" type="button" onClick={triggerFileInput}>
+                    <UploadCloud className="mr-2 h-4 w-4" /> Change Picture
+                  </Button>
                 </div>
                 <FormField
                   control={profileForm.control}
@@ -173,7 +196,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel htmlFor="name">Full Name</FormLabel>
                       <FormControl>
-                        <Input id="name" {...field} />
+                        <Input id="name" {...field} className="text-sm" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -181,11 +204,11 @@ export default function SettingsPage() {
                 />
                 <div className="space-y-1">
                   <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" type="email" value={currentUser.email} disabled />
+                  <Input id="email" type="email" value={currentUser.email} disabled className="text-sm" />
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="department">Department</Label>
-                  <Input id="department" value={currentUser.department} disabled />
+                  <Input id="department" value={currentUser.department} disabled className="text-sm" />
                 </div>
                 <Button type="submit" className="w-full" disabled={isSavingName}>
                   {isSavingName && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -229,7 +252,7 @@ export default function SettingsPage() {
                   <p className="text-sm text-muted-foreground">Receive updates via email</p>
                 </div>
                 <Switch 
-                  checked={currentUser.prefersEmailNotifications}
+                  checked={!!currentUser.prefersEmailNotifications}
                   onCheckedChange={(checked) => handleNotificationToggle('email', checked)}
                   aria-label="Toggle email notifications"
                 />
@@ -240,7 +263,7 @@ export default function SettingsPage() {
                   <p className="text-sm text-muted-foreground">Show notifications within the app</p>
                 </div>
                  <Switch 
-                  checked={currentUser.prefersInAppNotifications}
+                  checked={!!currentUser.prefersInAppNotifications}
                   onCheckedChange={(checked) => handleNotificationToggle('inApp', checked)}
                   aria-label="Toggle in-app notifications"
                 />
@@ -267,7 +290,7 @@ export default function SettingsPage() {
                   <FormItem>
                     <FormLabel>Current Password</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input type="password" {...field} className="text-sm" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -280,7 +303,7 @@ export default function SettingsPage() {
                   <FormItem>
                     <FormLabel>New Password</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input type="password" {...field} className="text-sm" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -293,7 +316,7 @@ export default function SettingsPage() {
                   <FormItem>
                     <FormLabel>Confirm New Password</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input type="password" {...field} className="text-sm" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -315,3 +338,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+
