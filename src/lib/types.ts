@@ -12,8 +12,8 @@ export interface Employee {
   academicQualification?: string;
   dateJoined?: Date;
   passwordLastChanged?: Date | null;
-  prefersEmailNotifications?: boolean;
-  prefersInAppNotifications?: boolean;
+  prefersEmailNotifications: boolean;
+  prefersInAppNotifications: boolean;
 }
 
 export type TrainingRequestStatus = 'pending' | 'approved' | 'rejected';
@@ -64,3 +64,4 @@ export interface TrainingRequest {
   submittedDate: Date;
   lastUpdated: Date;
 }
+

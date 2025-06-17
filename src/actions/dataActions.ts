@@ -146,7 +146,7 @@ export async function updateUserProfileNameAction(userId: string, newName: strin
     const result = await db.run('UPDATE employees SET name = ? WHERE id = ?', newName, userId);
     if (result.changes && result.changes > 0) {
       revalidatePath('/settings');
-      revalidatePath('/(authenticated)', 'layout'); // Revalidate layout to update UserNav potentially
+      revalidatePath('/(authenticated)', 'layout'); 
       return true;
     }
     return false;
@@ -195,16 +195,19 @@ export async function updateUserNotificationPreferenceAction(
   value: boolean
 ): Promise<boolean> {
   const db = await getDb();
-  const column = preferenceType === 'email' ? 'prefersEmailNotifications' : 'prefersInAppNotifications';
+  const columnToUpdate = preferenceType === 'email' ? 'prefersEmailNotifications' : 'prefersInAppNotifications';
+  const dbValue = value ? 1 : 0;
   try {
-    const result = await db.run(`UPDATE employees SET ${column} = ? WHERE id = ?`, value ? 1 : 0, userId);
+    const result = await db.run(`UPDATE employees SET ${columnToUpdate} = ? WHERE id = ?`, dbValue, userId);
     if (result.changes && result.changes > 0) {
       revalidatePath('/settings');
+      revalidatePath('/(authenticated)', 'layout'); // Ensures broader UI updates if needed
       return true;
     }
     return false;
   } catch (error) {
-    console.error(`Failed to update ${preferenceType} notification preference:`, error);
+    console.error(`Failed to update ${preferenceType} notification preference for user ${userId}:`, error);
     return false;
   }
 }
+
