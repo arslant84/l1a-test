@@ -57,12 +57,12 @@ const getOverallStatusText = (request: TrainingRequest, usersFromAuth: Employee[
 };
 
 const getStatusVariant = (status: TrainingRequest['status'], currentStep?: TrainingRequest['currentApprovalStep']): "success" | "secondary" | "destructive" | "outline" => {
-  if (status === 'approved') { // This covers 'approved & processed' and 'pending CM' if status is approved
+  if (status === 'approved') {
     return 'success';
   }
   if (status === 'rejected') return 'destructive';
   if (status === 'cancelled') return 'outline';
-  return 'secondary'; // pending (yellowish/grayish)
+  return 'secondary'; 
 };
 
 const programTypeDisplayNames: Record<ProgramType, string> = {
@@ -109,9 +109,9 @@ const InfoDisplayRow: React.FC<InfoRowProps> = ({ icon: Icon, label, value, isDa
   return (
     <div className="flex items-start space-x-3 py-2 border-b border-dashed last:border-b-0">
       <Icon className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
-      <div className="flex-1">
+      <div className="flex-1 min-w-0"> {/* Added min-w-0 for better flex handling of long content */}
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        {children ? <div className="text-sm text-foreground mt-0.5">{children}</div> : <p className="text-sm text-foreground">{displayValue}</p>}
+        {children ? <div className="text-sm text-foreground mt-0.5 break-words">{children}</div> : <p className="text-sm text-foreground break-words">{displayValue}</p>}
       </div>
     </div>
   );
@@ -176,17 +176,19 @@ export default function TrainingRequestDetailPage() {
 
       <Card className="shadow-lg">
         <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
-            <div className="flex-1">
-              <CardTitle className="font-headline text-2xl mb-1">{request.trainingTitle}</CardTitle>
+          <div className="flex flex-col md:flex-row justify-between md:items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <CardTitle className="font-headline text-2xl mb-1 break-words">{request.trainingTitle}</CardTitle>
               <CardDescription>Submitted on: {format(request.submittedDate, 'PPP p')}</CardDescription>
             </div>
-            <Badge 
-              variant={getStatusVariant(request.status, request.currentApprovalStep)} 
-              className="text-base px-4 py-2 mt-1 sm:mt-0 whitespace-nowrap self-start sm:self-center"
-            >
-              {getOverallStatusText(request, users)}
-            </Badge>
+            <div className="flex-shrink-0 mt-2 md:mt-0 self-start md:self-auto">
+              <Badge 
+                variant={getStatusVariant(request.status, request.currentApprovalStep)} 
+                className="text-base px-4 py-2 whitespace-nowrap"
+              >
+                {getOverallStatusText(request, users)}
+              </Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -301,3 +303,4 @@ export default function TrainingRequestDetailPage() {
     </div>
   );
 }
+
