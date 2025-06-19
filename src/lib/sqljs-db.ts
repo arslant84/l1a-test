@@ -6,8 +6,8 @@ import { mockEmployees, mockTrainingRequests } from './mock-data';
 let SQL: SqlJsStatic | null = null;
 let dbInstance: Database | null = null;
 
-const DB_PATH = '/vendors.db'; // Path in the public folder
-const WASM_PATH = '/sql-wasm.wasm'; // Path to the WASM file in the public folder
+const DB_PATH = '/vendors.db'; 
+const WASM_PATH = '/sql-wasm.wasm'; 
 
 async function initializeSqlJs(): Promise<SqlJsStatic> {
   if (!SQL) {
@@ -121,33 +121,58 @@ export async function getDb(): Promise<Database> {
   if (!dbInstance) {
     const SQL = await initializeSqlJs();
     let dbFileArrayBuffer: ArrayBuffer | null = null;
+    let dbLoadedFromFile = false;
+
     try {
       const response = await fetch(DB_PATH);
       if (response.ok) {
         dbFileArrayBuffer = await response.arrayBuffer();
-        if (dbFileArrayBuffer && dbFileArrayBuffer.byteLength > 0) {
-          dbInstance = new SQL.Database(new Uint8Array(dbFileArrayBuffer));
-          console.log("sql.js database loaded successfully from", DB_PATH);
-        } else {
-           // This case can happen if vendors.db is an empty file
-          console.warn(`Fetched ${DB_PATH}, but it was empty. Will create an in-memory DB with mock data.`);
-          dbFileArrayBuffer = null; // Ensure we fall into the creation logic
-        }
+        // Initialize with the fetched data.
+        // If dbFileArrayBuffer is null or empty, SQL.Database() creates an empty in-memory DB.
+        dbInstance = new SQL.Database(dbFileArrayBuffer && dbFileArrayBuffer.byteLength > 0 ? new Uint8Array(dbFileArrayBuffer) : undefined);
+        console.log(`sql.js database instance initialized using ${DB_PATH}.`);
+        dbLoadedFromFile = true;
       } else {
-        console.warn(`Failed to fetch database file from ${DB_PATH}: ${response.statusText}. Will create an in-memory DB with mock data.`);
+        console.warn(`Failed to fetch database file from ${DB_PATH}: ${response.statusText}. Will create an in-memory DB with mock data as a fallback.`);
       }
     } catch (error) {
-      console.warn(`CRITICAL: Error fetching database from ${DB_PATH}:`, error, ". Will create an in-memory DB with mock data.");
+      console.warn(`Error fetching database from ${DB_PATH}:`, error, ". Will create an in-memory DB with mock data as a fallback.");
     }
 
-    if (!dbInstance) {
-      console.log("Initializing new in-memory SQL.js database and seeding with mock data...");
-      dbInstance = new SQL.Database();
+    if (!dbLoadedFromFile && !dbInstance) { // Ensure dbInstance isn't accidentally null from a failed but non-erroring fetch.
+      console.log("Fallback: Initializing new in-memory SQL.js database, creating tables, and seeding with mock data...");
+      dbInstance = new SQL.Database(); 
       createTables(dbInstance);
       seedDatabaseWithMockData(dbInstance);
+    } else if (dbLoadedFromFile && dbInstance) {
+      // Database was loaded from file (or an empty one created if the file was empty).
+      // Check if required tables exist and warn if not.
+      try {
+        const tableCheckStmt = dbInstance.prepare("SELECT name FROM sqlite_master WHERE type='table' AND (name='employees' OR name='training_requests')");
+        let tablesFound = 0;
+        while(tableCheckStmt.step()) {
+          tablesFound++;
+        }
+        tableCheckStmt.free();
+
+        if (tablesFound < 2) {
+         console.warn(`Database loaded from ${DB_PATH}, but required tables ('employees', 'training_requests') might be missing or incomplete. Application queries may fail if schema is not set up in vendors.db.`);
+        } else {
+         console.log(`Database loaded from ${DB_PATH}. Required tables ('employees', 'training_requests') appear to exist.`);
+        }
+      } catch (e) {
+        // This might happen if the DB is truly malformed or empty, prepare might fail.
+        console.warn(`Could not verify tables in ${DB_PATH}. It might be empty or malformed. Ensure schema is correct. Error:`, e);
+      }
+    } else if (!dbInstance) {
+        // Should not happen if logic is correct, but as a safeguard:
+        console.error("Critical error: dbInstance is null after attempting to load or create database. Defaulting to new in-memory DB.");
+        dbInstance = new SQL.Database(); 
+        createTables(dbInstance);
+        seedDatabaseWithMockData(dbInstance);
     }
   }
-  return dbInstance;
+  return dbInstance!;
 }
 
 // Helper to convert sql.js output to a more usable array of objects
@@ -171,7 +196,6 @@ export function parseEmployee(dbEmployee: any): Employee {
     ...dbEmployee,
     dateJoined: dbEmployee.dateJoined ? new Date(dbEmployee.dateJoined) : undefined,
     passwordLastChanged: dbEmployee.passwordLastChanged ? new Date(dbEmployee.passwordLastChanged) : null,
-    // SQLite stores booleans as 0 or 1
     prefersEmailNotifications: !!dbEmployee.prefersEmailNotifications,
     prefersInAppNotifications: !!dbEmployee.prefersInAppNotifications,
   };
@@ -198,7 +222,9 @@ export function parseTrainingRequest(dbRequest: any): TrainingRequest {
 export async function saveDatabaseChanges(): Promise<void> {
   if (dbInstance) {
     // const binaryArray = dbInstance.export();
-    console.log("Database changes are in-memory with sql.js. To persist changes beyond the session when not using a loaded .db file, you would need to implement a mechanism to save the exported database (e.g., offer download, or send to a server). This is not implemented by default.");
+    // In a real application, you might offer a download or send to a server.
+    // For this client-side sql.js setup without a backend to save to, changes are ephemeral to the session
+    // if not persisted back into the public/vendors.db file manually or via a download/upload mechanism.
+    console.log("Database changes are in-memory with sql.js. To persist changes beyond the session when using a loaded .db file, the file itself would need to be updated (e.g., offer download, or use a server to overwrite public/vendors.db if permissions allow, which is not typical for public folder).");
   }
 }
-
