@@ -1,7 +1,7 @@
 
 "use client";
 import type { ReactNode } from 'react';
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { Employee, TrainingRequest } from '@/lib/types';
 import { 
   loginUserAction, 
@@ -219,21 +219,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser, dbReady, loadInitialData]);
   
 
+  const contextValue = useMemo(() => ({
+    currentUser, 
+    isLoading: isLoading || !dbReady, 
+    login, 
+    logout, 
+    reloadCurrentUser, 
+    trainingRequests, 
+    addTrainingRequest, 
+    updateRequestStatus, 
+    cancelTrainingRequest, 
+    markRequestAsProcessedByCM,
+    users 
+  }), [
+    currentUser, isLoading, dbReady, login, logout, reloadCurrentUser, 
+    trainingRequests, addTrainingRequest, updateRequestStatus, 
+    cancelTrainingRequest, markRequestAsProcessedByCM, users
+  ]);
+
   return (
-    <AuthContext.Provider value={{ 
-      currentUser, 
-      isLoading: isLoading || !dbReady, 
-      login, 
-      logout, 
-      reloadCurrentUser, 
-      trainingRequests, 
-      addTrainingRequest, 
-      updateRequestStatus, 
-      cancelTrainingRequest, 
-      markRequestAsProcessedByCM,
-      users 
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
 };
+

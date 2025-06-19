@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 
 const approvalStepRoleDisplay: Record<ApprovalStepRole, string> = {
   supervisor: 'Supervisor',
@@ -37,8 +37,12 @@ export default function DashboardPage() {
   const [actionType, setActionType] = useState<'cancel' | 'closeOut' | null>(null);
 
 
-  const userRequests = trainingRequests.filter(req => req.employeeId === currentUser?.id)
-    .sort((a,b) => b.submittedDate.getTime() - a.submittedDate.getTime());
+  const userRequests = useMemo(() => {
+    if (!currentUser) return [];
+    return trainingRequests
+      .filter(req => req.employeeId === currentUser.id)
+      .sort((a,b) => b.submittedDate.getTime() - a.submittedDate.getTime());
+  }, [trainingRequests, currentUser]);
 
   const getStatusText = (request: TrainingRequest): string => {
     if (request.status === 'approved' && request.currentApprovalStep === 'cm') return 'Pending CM Processing';
@@ -244,3 +248,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
