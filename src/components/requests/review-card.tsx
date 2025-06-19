@@ -340,29 +340,29 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
         )}
       </CardContent>
       {canTakeAction && (
-        <CardFooter className="flex flex-col sm:flex-row sm:flex-wrap justify-end gap-2 pt-3 border-t mt-auto">
+        <CardFooter className="flex flex-wrap justify-end gap-2 pt-3 border-t mt-auto">
           {currentUser?.role !== 'cm' && request.status === 'pending' && (
             <>
-              <Button variant="ghost" size="sm" asChild className="w-full sm:w-auto" title="Edit Request">
+              <Button variant="ghost" size="sm" asChild title="Edit Request">
                 <Link href={`/requests/new?editId=${request.id}`}>
                   <Edit className="mr-1.5 h-4 w-4" /> Edit
                 </Link>
               </Button>
-              <Button variant="outline" size="sm" onClick={() => handleDecisionAction('rejected')} className="w-full sm:w-auto">
+              <Button variant="outline" size="sm" onClick={() => handleDecisionAction('rejected')}>
                 <XCircle className="mr-1.5 h-4 w-4" /> Reject
               </Button>
-              <Button size="sm" onClick={() => handleDecisionAction('approved')} className="w-full sm:w-auto">
+              <Button size="sm" onClick={() => handleDecisionAction('approved')}>
                 <CheckCircle className="mr-1.5 h-4 w-4" /> Approve
               </Button>
             </>
           )}
           {currentUser?.role === 'cm' && (
-             <Button size="sm" onClick={handleCMProcessing} className="w-full sm:w-auto">
+             <Button size="sm" onClick={handleCMProcessing}>
                 <CheckCheck className="mr-1.5 h-4 w-4" /> Mark as Processed
               </Button>
           )}
           {canEditOrCancelAsApprover && (
-            <Button variant="destructive" size="sm" onClick={() => setShowCancelDialog(true)} className="w-full sm:w-auto sm:ml-auto" title="Cancel Request">
+            <Button variant="destructive" size="sm" onClick={() => setShowCancelDialog(true)} title="Cancel Request">
                 <Trash2 className="mr-1.5 h-4 w-4" /> Cancel
             </Button>
           )}
