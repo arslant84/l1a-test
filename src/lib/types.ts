@@ -65,3 +65,27 @@ export interface TrainingRequest {
   cancelledDate?: Date;
   cancellationReason?: string;
 }
+
+// Placeholder for VendorInputFields as its definition was not provided
+// Please replace with the actual type definition for your application.
+export interface VendorInputFields {
+  vendorName: string;
+  tenderNumber?: string | null;
+  tenderTitle?: string | null;
+  dateOfFinancialEvaluation?: string | null; // Assuming string for date simplicity here
+  evaluationValidityDate?: string | null; // Assuming string for date simplicity here
+  evaluatorNameDepartment?: string | null;
+  overallResult?: string | null;
+  quantitativeScore?: string | null; // Or number, adjust as needed
+  quantitativeBand?: string | null;
+  quantitativeRiskCategory?: string | null;
+  altmanZScore?: string | null; // Or number
+  altmanZBand?: string | null;
+  altmanZRiskCategory?: string | null;
+  qualitativeScore?: string | null; // Or number
+  qualitativeBand?: string | null;
+  qualitativeRiskCategory?: string | null;
+  overallFinancialEvaluationResult?: string | null;
+  // Add any other fields that are part of VENDOR_COLUMNS in database.ts
+  [key: string]: any; // Allow other properties if needed
+}
