@@ -6,12 +6,14 @@ import { mockEmployees, mockTrainingRequests } from './mock-data';
 let SQL: SqlJsStatic | null = null;
 let dbInstance: Database | null = null;
 
-const DB_PATH = '/vendors.db'; 
+const DB_PATH = '/vendors.db'; // Corrected and ensured this is the path used
 const WASM_PATH = '/sql-wasm.wasm'; 
 
 async function initializeSqlJs(): Promise<SqlJsStatic> {
   if (!SQL) {
     try {
+      // The { locateFile: file => WASM_PATH } part is crucial for sql.js to find its .wasm file.
+      // Ensure sql-wasm.wasm is in your /public directory.
       SQL = await initSqlJs({ locateFile: file => WASM_PATH });
     } catch (error) {
       console.error("Failed to initialize sql.js:", error);
@@ -124,7 +126,8 @@ export async function getDb(): Promise<Database> {
     let dbLoadedFromFile = false;
 
     try {
-      const response = await fetch(DB_PATH); // DB_PATH should be '/vendors.db'
+      console.log(`Attempting to fetch database file from ${DB_PATH}...`);
+      const response = await fetch(DB_PATH); 
       if (response.ok) {
         dbFileArrayBuffer = await response.arrayBuffer();
         if (dbFileArrayBuffer && dbFileArrayBuffer.byteLength > 0) {
@@ -142,18 +145,18 @@ export async function getDb(): Promise<Database> {
     }
 
     if (!dbLoadedFromFile) {
-      console.warn(`IMPORTANT: Falling back to an empty in-memory database. This WILL cause 'no such table' errors if ${DB_PATH} is not correctly set up in your 'public' folder with the necessary tables (e.g., 'employees', 'training_requests'). Please ensure '${DB_PATH}' exists and contains the correct schema and data.`);
+      console.warn(`IMPORTANT: Falling back to an empty in-memory database because ${DB_PATH} was not loaded. This will attempt to create tables and seed mock data. If you intend to use a persistent vendors.db, ensure it's correctly placed in the 'public' folder and accessible.`);
       dbInstance = new SQL.Database(); 
       try {
+        console.log("Initializing new in-memory SQL.js database and seeding with mock data...");
         createTables(dbInstance);
         seedDatabaseWithMockData(dbInstance);
       } catch(seedError) {
-        console.error("AuthProvider: Failed to initialize database during seeding:", seedError);
+        console.error("CRITICAL: Failed to create tables or seed mock data in the in-memory database:", seedError);
         // dbInstance is already set to new SQL.Database(), so it will be an empty DB
-        // This allows the app to load, but data operations will fail.
+        // This allows the app to load, but data operations will fail if tables aren't created.
       }
     } else if (dbInstance) { 
-      // Database was loaded from file. Check if required tables exist.
       try {
         const tableCheckStmt = dbInstance.prepare("SELECT name FROM sqlite_master WHERE type='table' AND (name='employees' OR name='training_requests')");
         let tablesFound = 0;
@@ -172,8 +175,8 @@ export async function getDb(): Promise<Database> {
       }
     }
     
-    if (!dbInstance) { // Ultimate fallback, should ideally not be reached if logic above is sound
-        console.error("CRITICAL FALLBACK: dbInstance is still null. Creating a new empty in-memory database.");
+    if (!dbInstance) { 
+        console.error("ULTIMATE FALLBACK: dbInstance is still null after all attempts. Creating a new empty in-memory database. App will likely not function correctly.");
         dbInstance = new SQL.Database();
     }
   }
@@ -199,8 +202,8 @@ export function parseEmployee(dbEmployee: any): Employee {
     ...dbEmployee,
     dateJoined: dbEmployee.dateJoined ? new Date(dbEmployee.dateJoined) : undefined,
     passwordLastChanged: dbEmployee.passwordLastChanged ? new Date(dbEmployee.passwordLastChanged) : null,
-    prefersEmailNotifications: !!dbEmployee.prefersEmailNotifications, // Convert 0/1 to boolean
-    prefersInAppNotifications: !!dbEmployee.prefersInAppNotifications, // Convert 0/1 to boolean
+    prefersEmailNotifications: !!dbEmployee.prefersEmailNotifications, 
+    prefersInAppNotifications: !!dbEmployee.prefersInAppNotifications, 
   };
 }
 
@@ -222,8 +225,13 @@ export function parseTrainingRequest(dbRequest: any): TrainingRequest {
   };
 }
 
+// This function is a placeholder as sql.js operates in-memory.
+// True persistence would require downloading the DB or sending changes to a server.
 export async function saveDatabaseChanges(): Promise<void> {
   if (dbInstance) {
-    console.log("Database changes are in-memory with sql.js. To persist changes, the file in public/vendors.db would need to be updated (e.g., offer download, or use a server to overwrite if permissions allow, which is not typical for public folder).");
+    console.log("Database changes are in-memory with sql.js. To persist, the ArrayBuffer from db.export() would need to be handled (e.g., downloaded by the user or sent to a server).");
+    // Example: const binaryArray = dbInstance.export();
+    // This binaryArray could then be offered as a download.
   }
 }
+
