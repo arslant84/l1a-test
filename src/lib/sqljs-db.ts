@@ -1,19 +1,17 @@
 
 import initSqlJs, { type Database, type SqlJsStatic } from 'sql.js';
-import type { Employee, TrainingRequest } from './types';
+import type { Employee, TrainingRequest, ApprovalAction } from './types'; // Ensure ApprovalAction is imported if used directly here
 import { mockEmployees, mockTrainingRequests } from './mock-data';
 
 let SQL: SqlJsStatic | null = null;
 let dbInstance: Database | null = null;
 
-const DB_PATH = '/vendors.db'; // Corrected and ensured this is the path used
+const DB_PATH = '/vendors.db';
 const WASM_PATH = '/sql-wasm.wasm'; 
 
 async function initializeSqlJs(): Promise<SqlJsStatic> {
   if (!SQL) {
     try {
-      // The { locateFile: file => WASM_PATH } part is crucial for sql.js to find its .wasm file.
-      // Ensure sql-wasm.wasm is in your /public directory.
       SQL = await initSqlJs({ locateFile: file => WASM_PATH });
     } catch (error) {
       console.error("Failed to initialize sql.js:", error);
@@ -61,7 +59,10 @@ function createTables(db: Database) {
       currentApprovalStep TEXT,
       approvalChain TEXT,
       submittedDate TEXT,
-      lastUpdated TEXT
+      lastUpdated TEXT,
+      cancelledByUserId TEXT,
+      cancelledDate TEXT,
+      cancellationReason TEXT
     );
   `);
   console.log("Database tables (employees, training_requests) created in-memory.");
@@ -92,7 +93,7 @@ function seedDatabaseWithMockData(db: Database) {
 
   mockTrainingRequests.forEach(req => {
     db.run(
-      'INSERT INTO training_requests (id, employeeId, employeeName, trainingTitle, justification, organiser, venue, startDate, endDate, cost, mode, programType, previousRelevantTraining, supportingDocuments, status, currentApprovalStep, approvalChain, submittedDate, lastUpdated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO training_requests (id, employeeId, employeeName, trainingTitle, justification, organiser, venue, startDate, endDate, cost, mode, programType, previousRelevantTraining, supportingDocuments, status, currentApprovalStep, approvalChain, submittedDate, lastUpdated, cancelledByUserId, cancelledDate, cancellationReason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         req.id,
         req.employeeId,
@@ -113,6 +114,9 @@ function seedDatabaseWithMockData(db: Database) {
         JSON.stringify(req.approvalChain.map(ac => ({...ac, date: ac.date.toISOString()}))),
         req.submittedDate.toISOString(),
         req.lastUpdated.toISOString(),
+        req.cancelledByUserId || null,
+        req.cancelledDate?.toISOString() || null,
+        req.cancellationReason || null,
       ]
     );
   });
@@ -145,7 +149,7 @@ export async function getDb(): Promise<Database> {
     }
 
     if (!dbLoadedFromFile) {
-      console.warn(`IMPORTANT: Falling back to an empty in-memory database because ${DB_PATH} was not loaded. This will attempt to create tables and seed mock data. If you intend to use a persistent vendors.db, ensure it's correctly placed in the 'public' folder and accessible.`);
+      console.warn(`IMPORTANT: Falling back to an empty in-memory database because ${DB_PATH} was not loaded. This will attempt to create tables and seed mock data. If you intend to use a persistent ${DB_PATH}, ensure it's correctly placed in the 'public' folder and accessible.`);
       dbInstance = new SQL.Database(); 
       try {
         console.log("Initializing new in-memory SQL.js database and seeding with mock data...");
@@ -153,8 +157,6 @@ export async function getDb(): Promise<Database> {
         seedDatabaseWithMockData(dbInstance);
       } catch(seedError) {
         console.error("CRITICAL: Failed to create tables or seed mock data in the in-memory database:", seedError);
-        // dbInstance is already set to new SQL.Database(), so it will be an empty DB
-        // This allows the app to load, but data operations will fail if tables aren't created.
       }
     } else if (dbInstance) { 
       try {
@@ -216,22 +218,18 @@ export function parseTrainingRequest(dbRequest: any): TrainingRequest {
     lastUpdated: new Date(dbRequest.lastUpdated),
     supportingDocuments: dbRequest.supportingDocuments ? JSON.parse(dbRequest.supportingDocuments) : [],
     approvalChain: dbRequest.approvalChain 
-      ? JSON.parse(dbRequest.approvalChain).map((action: any) => ({
+      ? JSON.parse(dbRequest.approvalChain).map((action: ApprovalAction) => ({
           ...action,
           date: new Date(action.date),
         }))
       : [],
-    cost: Number(dbRequest.cost) 
+    cost: Number(dbRequest.cost),
+    cancelledDate: dbRequest.cancelledDate ? new Date(dbRequest.cancelledDate) : undefined,
   };
 }
 
-// This function is a placeholder as sql.js operates in-memory.
-// True persistence would require downloading the DB or sending changes to a server.
 export async function saveDatabaseChanges(): Promise<void> {
   if (dbInstance) {
     console.log("Database changes are in-memory with sql.js. To persist, the ArrayBuffer from db.export() would need to be handled (e.g., downloaded by the user or sent to a server).");
-    // Example: const binaryArray = dbInstance.export();
-    // This binaryArray could then be offered as a download.
   }
 }
-

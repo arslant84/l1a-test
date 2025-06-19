@@ -3,9 +3,6 @@
 import { getDb, convertSqljsResponse, parseEmployee, parseTrainingRequest, saveDatabaseChanges } from './sqljs-db';
 import type { Employee, TrainingRequest, ApprovalAction, TrainingRequestStatus, CurrentApprovalStep, ApprovalStepRole } from '@/lib/types';
 
-// sql.js uses `?` or named placeholders like `$name` or `:name`
-// We'll use `?` for simplicity
-
 export async function loginUserAction(email: string, role: Employee['role']): Promise<Employee | null> {
   const db = await getDb();
   const stmt = db.prepare('SELECT * FROM employees WHERE lower(email) = lower(?) AND role = ?');
@@ -24,8 +21,6 @@ export async function loginUserAction(email: string, role: Employee['role']): Pr
 
 export async function fetchAllUsersAction(): Promise<Employee[]> {
   const db = await getDb();
-  // For sql.js, db.exec returns an array of result objects.
-  // Each result object has 'columns' (array of column names) and 'values' (array of arrays of row values).
   const res = db.exec('SELECT * FROM employees');
   const dbUsers = convertSqljsResponse<any>(res);
   return dbUsers.map(parseEmployee);
@@ -39,7 +34,7 @@ export async function fetchAllTrainingRequestsAction(): Promise<TrainingRequest[
 }
 
 export async function addTrainingRequestAction(
-  requestData: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain'>,
+  requestData: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain' | 'cancelledByUserId' | 'cancelledDate' | 'cancellationReason'>,
   currentUser: Employee
 ): Promise<boolean> {
   if (!currentUser) return false;
@@ -63,16 +58,16 @@ export async function addTrainingRequestAction(
         requestData.cost,
         requestData.mode,
         requestData.programType,
-        requestData.previousRelevantTraining,
+        requestData.previousRelevantTraining || null,
         JSON.stringify(requestData.supportingDocuments || []),
         'pending',
-        'supervisor', // Default first step
-        JSON.stringify([]), // Empty approval chain initially
+        'supervisor', 
+        JSON.stringify([]), 
         submittedDate,
         submittedDate
       ]
     );
-    await saveDatabaseChanges(); // Persist changes if implemented
+    await saveDatabaseChanges(); 
     return true;
   } catch (error) {
     console.error("Failed to add training request (sql.js):", error);
@@ -101,7 +96,7 @@ export async function updateRequestStatusAction(
 
   const parsedCurrentRequest = parseTrainingRequest(currentRequestFromDb);
 
-  if (parsedCurrentRequest.currentApprovalStep === 'completed' || currentUser.role !== parsedCurrentRequest.currentApprovalStep) {
+  if (parsedCurrentRequest.status !== 'pending' || parsedCurrentRequest.currentApprovalStep === 'completed' || currentUser.role !== parsedCurrentRequest.currentApprovalStep) {
     return false; 
   }
 
@@ -121,7 +116,7 @@ export async function updateRequestStatusAction(
   if (decision === 'rejected') {
     finalStatus = 'rejected';
     nextApprovalStep = 'completed';
-  } else { // Approved
+  } else { 
     switch (parsedCurrentRequest.currentApprovalStep) {
       case 'supervisor':
         nextApprovalStep = 'thr';
@@ -161,15 +156,39 @@ export async function updateRequestStatusAction(
   }
 }
 
+export async function cancelTrainingRequestAction(
+  requestId: string,
+  cancellingUserId: string,
+  cancellationReason?: string
+): Promise<boolean> {
+  const db = await getDb();
+  const cancelledDate = new Date().toISOString();
+  try {
+    db.run(
+      'UPDATE training_requests SET status = ?, currentApprovalStep = ?, cancelledByUserId = ?, cancelledDate = ?, cancellationReason = ?, lastUpdated = ? WHERE id = ?',
+      [
+        'cancelled',
+        'completed',
+        cancellingUserId,
+        cancelledDate,
+        cancellationReason || null,
+        cancelledDate,
+        requestId
+      ]
+    );
+    await saveDatabaseChanges();
+    return true;
+  } catch (error) {
+    console.error("Failed to cancel training request (sql.js):", error);
+    return false;
+  }
+}
+
 export async function updateUserProfileNameAction(userId: string, newName: string): Promise<boolean> {
   const db = await getDb();
   try {
-    // sql.js db.run does not directly return changes count like node-sqlite.
-    // We assume success if no error is thrown.
     db.run('UPDATE employees SET name = ? WHERE id = ?', [newName, userId]);
     await saveDatabaseChanges();
-    // To verify changes, you might need to query or rely on error handling.
-    // For simplicity, we'll assume it worked if no error.
     return true; 
   } catch (error) {
     console.error("Failed to update user name (sql.js):", error);
@@ -208,7 +227,7 @@ export async function updateUserNotificationPreferenceAction(
 ): Promise<boolean> {
   const db = await getDb();
   const columnToUpdate = preferenceType === 'email' ? 'prefersEmailNotifications' : 'prefersInAppNotifications';
-  const dbValue = value ? 1 : 0; // SQLite uses 0/1 for booleans
+  const dbValue = value ? 1 : 0; 
   try {
     db.run(`UPDATE employees SET ${columnToUpdate} = ? WHERE id = ?`, [dbValue, userId]);
     await saveDatabaseChanges();

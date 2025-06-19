@@ -8,9 +8,10 @@ import {
   fetchAllUsersAction, 
   fetchAllTrainingRequestsAction, 
   addTrainingRequestAction, 
-  updateRequestStatusAction 
-} from '@/lib/client-data-service'; // UPDATED IMPORT
-import { getDb } from '@/lib/sqljs-db'; // Import getDb to ensure DB is initialized
+  updateRequestStatusAction,
+  cancelTrainingRequestAction // Added cancel action
+} from '@/lib/client-data-service';
+import { getDb } from '@/lib/sqljs-db';
 
 interface AuthContextType {
   currentUser: Employee | null;
@@ -19,8 +20,9 @@ interface AuthContextType {
   logout: () => void;
   reloadCurrentUser: () => Promise<void>;
   trainingRequests: TrainingRequest[];
-  addTrainingRequest: (request: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain'>) => Promise<boolean>;
+  addTrainingRequest: (request: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain' | 'cancelledByUserId' | 'cancelledDate' | 'cancellationReason'>) => Promise<boolean>;
   updateRequestStatus: (requestId: string, decision: 'approved' | 'rejected', notes?: string) => Promise<boolean>;
+  cancelTrainingRequest: (requestId: string, cancellationReason?: string) => Promise<boolean>; // Added cancelTrainingRequest
   users: Employee[];
 }
 
@@ -36,22 +38,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [users, setUsers] = useState<Employee[]>([]);
   const [dbReady, setDbReady] = useState(false);
 
-  // Initialize DB first
   useEffect(() => {
     const initDb = async () => {
       try {
-        await getDb(); // This will initialize sql.js and load vendors.db
+        await getDb(); 
         setDbReady(true);
       } catch (error) {
         console.error("AuthProvider: Failed to initialize database", error);
-        setIsLoading(false); // Stop loading if DB fails critically
+        setIsLoading(false); 
       }
     };
     initDb();
   }, []);
 
   const loadInitialData = useCallback(async (loggedInUser: Employee | null) => {
-    if (!dbReady) return; // Don't load data if DB is not ready
+    if (!dbReady) return; 
     setIsLoading(true);
     try {
       const fetchedUsers = await fetchAllUsersAction();
@@ -61,7 +62,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setTrainingRequests(fetchedRequests);
 
       if (loggedInUser) {
-        // Re-fetch current user from the now client-side DB to ensure data consistency
         const freshUser = await loginUserAction(loggedInUser.email, loggedInUser.role);
         setCurrentUser(freshUser || null);
       } else {
@@ -80,9 +80,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       const freshUser = await loginUserAction(currentUser.email, currentUser.role);
-      setCurrentUser(freshUser); // Update current user
+      setCurrentUser(freshUser); 
       
-      // Since data might have changed (e.g. user name in requests), reload all relevant data
       const fetchedUsers = await fetchAllUsersAction();
       setUsers(fetchedUsers);
       const fetchedRequests = await fetchAllTrainingRequestsAction();
@@ -96,7 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser, dbReady]);
   
   useEffect(() => {
-    if (!dbReady) return; // Wait for DB to be ready
+    if (!dbReady) return;
 
     const attemptReAuthenticationAndLoad = async () => {
       setIsLoading(true);
@@ -106,8 +105,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const storedUserRole = localStorage.getItem(SESSION_USER_ROLE_KEY) as Employee['role'] | null;
         
         if (storedUserId && storedUserRole) {
-           // We need to query all users to find the one matching stored ID and role,
-           // because loginUserAction now needs email.
            const allDbUsers = await fetchAllUsersAction();
            const potentialUser = allDbUsers.find(u => u.id === storedUserId && u.role === storedUserRole);
            if (potentialUser) {
@@ -120,9 +117,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (e) {
         console.error("AuthProvider: Error during re-authentication:", e);
       } finally {
-        // Load all data regardless of re-auth success, but pass the potentially re-authed user
         await loadInitialData(sessionUser); 
-        // setIsLoading(false); // loadInitialData handles this
       }
     };
     attemptReAuthenticationAndLoad();
@@ -141,8 +136,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setCurrentUser(user);
         localStorage.setItem(SESSION_USER_ID_KEY, user.id); 
         localStorage.setItem(SESSION_USER_ROLE_KEY, user.role);
-        // After successful login, all data is reloaded by loadInitialData called via useEffect or directly.
-        // Forcing a fresh load ensures consistency.
         await loadInitialData(user);
         return true;
       }
@@ -162,18 +155,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setCurrentUser(null);
     localStorage.removeItem(SESSION_USER_ID_KEY);
     localStorage.removeItem(SESSION_USER_ROLE_KEY);
-    // Clear data, it will be reloaded on next login or page refresh if session persists
     setUsers([]);
     setTrainingRequests([]);
   }, []);
 
-  const addTrainingRequest = useCallback(async (requestData: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain'>): Promise<boolean> => {
+  const addTrainingRequest = useCallback(async (requestData: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain' | 'cancelledByUserId' | 'cancelledDate' | 'cancellationReason'>): Promise<boolean> => {
     if (!currentUser || !dbReady) return false;
-    // No need for setIsLoading(true) here as individual actions should be quick client-side
     try {
       const success = await addTrainingRequestAction(requestData, currentUser);
       if (success) {
-        // Reload data to reflect the new request
         await loadInitialData(currentUser); 
       }
       return success;
@@ -188,7 +178,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const success = await updateRequestStatusAction(requestId, decision, notes, currentUser);
       if (success) {
-        // Reload data to reflect the status change
         await loadInitialData(currentUser);
       }
       return success;
@@ -198,10 +187,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return false;
     }
   }, [currentUser, dbReady, loadInitialData]);
+
+  const cancelTrainingRequest = useCallback(async (requestId: string, cancellationReason?: string): Promise<boolean> => {
+    if (!currentUser || !dbReady) return false;
+    try {
+      const success = await cancelTrainingRequestAction(requestId, currentUser.id, cancellationReason);
+      if (success) {
+        await loadInitialData(currentUser);
+      }
+      return success;
+    } catch (error) {
+      console.error("Failed to cancel training request:", error);
+      return false;
+    }
+  }, [currentUser, dbReady, loadInitialData]);
   
 
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading: isLoading || !dbReady, login, logout, reloadCurrentUser, trainingRequests, addTrainingRequest, updateRequestStatus, users }}>
+    <AuthContext.Provider value={{ currentUser, isLoading: isLoading || !dbReady, login, logout, reloadCurrentUser, trainingRequests, addTrainingRequest, updateRequestStatus, cancelTrainingRequest, users }}>
       {children}
     </AuthContext.Provider>
   );

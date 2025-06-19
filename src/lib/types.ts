@@ -16,10 +16,8 @@ export interface Employee {
   prefersInAppNotifications: boolean;
 }
 
-export type TrainingRequestStatus = 'pending' | 'approved' | 'rejected';
-// Updated TrainingRequestMode to be more location-centric
+export type TrainingRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type TrainingRequestLocationMode = 'online' | 'in-house' | 'local' | 'overseas';
-// Added ProgramType based on L1A form's "Type of Program"
 export type ProgramType = 
   | 'course' 
   | 'conference/seminar/forum' 
@@ -54,8 +52,8 @@ export interface TrainingRequest {
   startDate: Date;
   endDate: Date;
   cost: number;
-  mode: TrainingRequestLocationMode; // Updated this to use the new type
-  programType: ProgramType; // Added new field
+  mode: TrainingRequestLocationMode;
+  programType: ProgramType;
   previousRelevantTraining?: string;
   supportingDocuments?: { name: string; url?: string }[];
   status: TrainingRequestStatus; 
@@ -63,5 +61,7 @@ export interface TrainingRequest {
   approvalChain: ApprovalAction[]; 
   submittedDate: Date;
   lastUpdated: Date;
+  cancelledByUserId?: string;
+  cancelledDate?: Date;
+  cancellationReason?: string;
 }
-

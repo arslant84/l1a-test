@@ -5,12 +5,28 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import React, { useState } from 'react'; // Import React
+import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, FileText, User, DollarSign, CalendarDays, Briefcase, MessageSquare, Info, Award, Edit3, BookOpen, MapPin, Users, ShieldCheck, Landmark, LayoutList, MapPinned } from 'lucide-react';
+import { 
+  CheckCircle, XCircle, FileText, User, DollarSign, CalendarDays, MessageSquare, Info, 
+  Award, BookOpen, MapPin, Users, ShieldCheck, Landmark, LayoutList, MapPinned, Trash2, Edit3 
+} from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Input } from '../ui/input';
+
 
 interface ReviewCardProps {
   request: TrainingRequest;
@@ -34,6 +50,9 @@ const getRoleIcon = (role: ApprovalAction['stepRole']) => {
 
 const getOverallStatusText = (request: TrainingRequest): string => {
   if (request.status === 'approved') return 'Approved';
+  if (request.status === 'cancelled') {
+    return `Cancelled`; // Simplified, more details can be in history
+  }
   if (request.status === 'rejected') {
      const lastAction = request.approvalChain[request.approvalChain.length - 1];
      if (lastAction?.decision === 'rejected') {
@@ -50,26 +69,41 @@ const getOverallStatusText = (request: TrainingRequest): string => {
 
 
 function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
-  const [notes, setNotes] = useState('');
-  const { updateRequestStatus, users, currentUser } = useAuth();
+  const [actionNotes, setActionNotes] = useState('');
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const { updateRequestStatus, cancelTrainingRequest, users, currentUser } = useAuth();
   const { toast } = useToast();
 
   const employeeDetails = users.find(u => u.id === request.employeeId);
 
-  const handleAction = async (decision: 'approved' | 'rejected') => {
-    const success = await updateRequestStatus(request.id, decision, notes);
+  const handleDecisionAction = async (decision: 'approved' | 'rejected') => {
+    const success = await updateRequestStatus(request.id, decision, actionNotes);
     if (success) {
       toast({ title: `Request ${decision}`, description: `Request from ${request.employeeName} has been ${decision}.`});
-      setNotes(''); 
+      setActionNotes(''); 
     } else {
       toast({ variant: "destructive", title: "Action Failed", description: "Could not update request status."});
     }
   };
+
+  const handleCancelAction = async () => {
+    if (!currentUser) return;
+    const success = await cancelTrainingRequest(request.id, cancellationReason || "Cancelled by approver.");
+    if (success) {
+      toast({ title: "Request Cancelled", description: `Request from ${request.employeeName} has been cancelled.`});
+      setCancellationReason('');
+    } else {
+      toast({ variant: "destructive", title: "Cancellation Failed", description: "Could not cancel the request."});
+    }
+    setShowCancelDialog(false);
+  };
   
-  const getStatusVariant = (status: TrainingRequest['status'], currentStep: TrainingRequest['currentApprovalStep']): "default" | "secondary" | "destructive" | "outline" => {
+  const getStatusVariant = (status: TrainingRequest['status']): "default" | "secondary" | "destructive" | "outline" => {
     if (status === 'approved') return 'default'; 
     if (status === 'rejected') return 'destructive';
-    return 'secondary';
+    if (status === 'cancelled') return 'outline';
+    return 'secondary'; // Pending
   };
 
   const canTakeAction = !isReadOnly && currentUser?.role === request.currentApprovalStep && request.status === 'pending';
@@ -94,6 +128,7 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
   };
 
   return (
+    <>
     <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
       <CardHeader>
         <div className="flex justify-between items-start">
@@ -103,7 +138,7 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
               Submitted by: {request.employeeName} on {format(request.submittedDate, 'MMM d, yyyy')}
             </CardDescription>
           </div>
-          <Badge variant={getStatusVariant(request.status, request.currentApprovalStep)} className="whitespace-nowrap text-xs px-2 py-1">
+          <Badge variant={getStatusVariant(request.status)} className="whitespace-nowrap text-xs px-2 py-1">
             {getOverallStatusText(request)}
           </Badge>
         </div>
@@ -230,11 +265,11 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
         
         {canTakeAction && (
           <div className="mt-4 pt-3 border-t">
-            <label htmlFor={`notes-${request.id}`} className="block text-xs font-medium text-foreground mb-1">Your Notes (Optional):</label>
+            <label htmlFor={`notes-${request.id}`} className="block text-xs font-medium text-foreground mb-1">Your Notes (Optional for Approve/Reject):</label>
             <Textarea
               id={`notes-${request.id}`}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              value={actionNotes}
+              onChange={(e) => setActionNotes(e.target.value)}
               placeholder="Provide reasoning for approval or rejection..."
               rows={2}
               className="text-xs"
@@ -244,15 +279,47 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
       </CardContent>
       {canTakeAction && (
         <CardFooter className="flex flex-col sm:flex-row justify-end gap-2 pt-3 border-t mt-auto">
-          <Button variant="outline" size="sm" onClick={() => handleAction('rejected')} className="w-full sm:w-auto">
+          <Button variant="destructive" size="sm" onClick={() => setShowCancelDialog(true)} className="w-full sm:w-auto">
+            <Trash2 className="mr-1.5 h-4 w-4" /> Cancel Request
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleDecisionAction('rejected')} className="w-full sm:w-auto">
             <XCircle className="mr-1.5 h-4 w-4" /> Reject
           </Button>
-          <Button size="sm" onClick={() => handleAction('approved')} className="w-full sm:w-auto">
+          <Button size="sm" onClick={() => handleDecisionAction('approved')} className="w-full sm:w-auto">
             <CheckCircle className="mr-1.5 h-4 w-4" /> Approve
           </Button>
         </CardFooter>
       )}
     </Card>
+
+    {showCancelDialog && (
+        <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancel Training Request?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Training: "{request.trainingTitle}" for {request.employeeName}.
+                <br/>
+                Please provide a reason for cancellation (optional). This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <Input 
+              type="text" 
+              placeholder="Reason for cancellation (optional)" 
+              value={cancellationReason}
+              onChange={(e) => setCancellationReason(e.target.value)}
+              className="mt-2"
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setShowCancelDialog(false)}>Back</AlertDialogCancel>
+              <AlertDialogAction onClick={handleCancelAction} className="bg-destructive hover:bg-destructive/90">
+                Confirm Cancellation
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </>
   );
 }
 
