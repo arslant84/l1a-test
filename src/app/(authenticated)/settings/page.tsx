@@ -19,7 +19,7 @@ import {
   updateUserAvatarAction, 
   updateUserPasswordAction, 
   updateUserNotificationPreferenceAction 
-} from '@/lib/client-data-service'; // UPDATED IMPORT
+} from '@/lib/client-data-service';
 import { UserCircle, Mail, Briefcase, KeyRound, Bell, Loader2, UploadCloud } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 
@@ -50,7 +50,7 @@ export default function SettingsPage() {
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
-      name: '', // Will be set by useEffect
+      name: '', 
     },
   });
 
@@ -109,21 +109,39 @@ export default function SettingsPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    toast({ title: "Picture Selected (Simulation)", description: `File "${file.name}" was chosen. Avatar will update with a new placeholder.` });
+    toast({ title: "Processing Picture Change (Simulation)", description: `File "${file.name}" was selected. Avatar will update with a new placeholder.` });
 
-    const currentPicNumber = currentUser.avatarUrl?.match(/(\d+)x\1/)?.[1];
-    const nextSize = currentPicNumber === '100' ? '150' : currentPicNumber === '150' ? '200' : '100';
-    const newAvatarUrl = `https://placehold.co/${nextSize}x${nextSize}.png`;
+    // Get the base URL without query parameters for size detection
+    const baseUrl = currentUser.avatarUrl?.split('?')[0] || '';
+    // Regex to capture the size from placehold.co/SIZE x SIZE.png
+    const match = baseUrl.match(/placehold\.co\/(\d+)x\1\.png/);
+    let currentSize = '0'; // Default if no match or not a placehold.co URL of the expected format
+
+    if (match && match[1]) {
+      currentSize = match[1];
+    }
+
+    let nextSize;
+    if (currentSize === '100') {
+      nextSize = '150';
+    } else if (currentSize === '150') {
+      nextSize = '200';
+    } else { // Includes '0' (initial/unknown/non-standard) and '200' (to cycle back)
+      nextSize = '100';
+    }
+    
+    // Add a timestamp to ensure the URL is always unique, forcing re-render and cache busting
+    const newAvatarUrl = `https://placehold.co/${nextSize}x${nextSize}.png?t=${Date.now()}`;
     
     const success = await updateUserAvatarAction(currentUser.id, newAvatarUrl);
     if (success) {
-      toast({ title: "Picture Updated", description: "Your profile picture has been changed (using a placeholder)." });
+      toast({ title: "Picture Updated", description: "Your profile picture has been changed (using a new placeholder)." });
       await reloadCurrentUser();
     } else {
       toast({ variant: "destructive", title: "Update Failed", description: "Could not update picture." });
     }
     if(fileInputRef.current) {
-        fileInputRef.current.value = "";
+        fileInputRef.current.value = ""; // Reset file input
     }
   };
 
