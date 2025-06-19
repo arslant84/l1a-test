@@ -139,7 +139,7 @@ export default function ReviewRequestsPage() {
     ? "Awaiting My Processing" 
     : "Awaiting My Action";
   
-  const awaitingActionIcon = currentUser.role === 'cm' ? Briefcase : UserCheck;
+  const AwaitingActionIcon = currentUser.role === 'cm' ? Briefcase : UserCheck;
 
 
   return (
@@ -182,7 +182,7 @@ export default function ReviewRequestsPage() {
       <Tabs defaultValue="pending" className="w-full">
         <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:inline-flex mb-4">
           <TabsTrigger value="pending" className="flex items-center gap-2">
-            <awaitingActionIcon className="h-4 w-4" /> {awaitingActionTabTitle} ({requestsForReview.length})
+            <AwaitingActionIcon className="h-4 w-4" /> {awaitingActionTabTitle} ({requestsForReview.length})
           </TabsTrigger>
           <TabsTrigger value="processed" className="flex items-center gap-2">
             <CheckSquare className="h-4 w-4" /> All Other Requests ({processedRequests.length})
@@ -222,3 +222,4 @@ export default function ReviewRequestsPage() {
     </div>
   );
 }
+
