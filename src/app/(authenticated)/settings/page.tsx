@@ -46,6 +46,7 @@ export default function SettingsPage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarRefreshTrigger, setAvatarRefreshTrigger] = useState(0); // Dummy state for forcing refresh
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -67,7 +68,7 @@ export default function SettingsPage() {
     if (currentUser) {
       profileForm.reset({ name: currentUser.name });
     }
-  }, [currentUser, profileForm]);
+  }, [currentUser, profileForm, avatarRefreshTrigger]); // Added avatarRefreshTrigger to dependencies
 
   if (authLoading || !currentUser) {
     return (
@@ -111,11 +112,9 @@ export default function SettingsPage() {
 
     toast({ title: "Processing Picture Change (Simulation)", description: `File "${file.name}" was selected. Avatar will update with a new placeholder.` });
 
-    // Get the base URL without query parameters for size detection
     const baseUrl = currentUser.avatarUrl?.split('?')[0] || '';
-    // Regex to capture the size from placehold.co/SIZE x SIZE.png
     const match = baseUrl.match(/placehold\.co\/(\d+)x\1\.png/);
-    let currentSize = '0'; // Default if no match or not a placehold.co URL of the expected format
+    let currentSize = '0'; 
 
     if (match && match[1]) {
       currentSize = match[1];
@@ -126,22 +125,22 @@ export default function SettingsPage() {
       nextSize = '150';
     } else if (currentSize === '150') {
       nextSize = '200';
-    } else { // Includes '0' (initial/unknown/non-standard) and '200' (to cycle back)
+    } else { 
       nextSize = '100';
     }
     
-    // Add a timestamp to ensure the URL is always unique, forcing re-render and cache busting
     const newAvatarUrl = `https://placehold.co/${nextSize}x${nextSize}.png?t=${Date.now()}`;
     
     const success = await updateUserAvatarAction(currentUser.id, newAvatarUrl);
     if (success) {
       toast({ title: "Picture Updated", description: "Your profile picture has been changed (using a new placeholder)." });
       await reloadCurrentUser();
+      setAvatarRefreshTrigger(prev => prev + 1); // Trigger re-render of this page
     } else {
       toast({ variant: "destructive", title: "Update Failed", description: "Could not update picture." });
     }
     if(fileInputRef.current) {
-        fileInputRef.current.value = ""; // Reset file input
+        fileInputRef.current.value = ""; // Reset file input to allow re-selection of the same file
     }
   };
 
@@ -149,7 +148,7 @@ export default function SettingsPage() {
   const handlePasswordChangeSubmit: SubmitHandler<PasswordFormValues> = async (data) => {
     if (!currentUser) return;
     setIsChangingPassword(true);
-    const success = await updateUserPasswordAction(currentUser.id);
+    const success = await updateUserPasswordAction(currentUser.id); // No actual password check in demo
     if (success) {
       toast({ title: "Password Updated", description: "Your password has been successfully changed." });
       await reloadCurrentUser();
@@ -189,7 +188,7 @@ export default function SettingsPage() {
             <Form {...profileForm}>
               <form onSubmit={profileForm.handleSubmit(handleProfileSave)} className="space-y-6">
                 <div className="flex flex-col items-center space-y-4">
-                  <Avatar className="h-24 w-24" key={currentUser.avatarUrl}>
+                  <Avatar className="h-24 w-24" key={`${currentUser.avatarUrl}-${avatarRefreshTrigger}`}> {/* Added avatarRefreshTrigger to key */}
                     <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} data-ai-hint="profile picture user" />
                     <AvatarFallback className="text-3xl">{getInitials(currentUser.name)}</AvatarFallback>
                   </Avatar>
@@ -353,4 +352,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
