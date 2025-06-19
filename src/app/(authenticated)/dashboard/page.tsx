@@ -47,20 +47,20 @@ export default function DashboardPage() {
     
     if (request.status === 'cancelled') {
       const canceller = request.cancelledByUserId === currentUser?.id ? 'You' : (users.find(u => u.id === request.cancelledByUserId)?.name || 'Admin');
-      return `Cancelled by ${canceller}`;
+      return "Cancelled by " + canceller;
     }
     if (request.status === 'rejected') {
       const lastAction = request.approvalChain[request.approvalChain.length - 1];
       if (lastAction?.decision === 'rejected') {
         const roleName = approvalStepRoleDisplay[lastAction.stepRole] || lastAction.stepRole;
-        return `Rejected by ${roleName}`;
+        return "Rejected by " + roleName;
       }
       return 'Rejected';
     }
     // Pending status
     if (request.currentApprovalStep === 'supervisor') return 'Pending Supervisor';
-    if (request.currentApprovalStep === 'thr') return `Pending ${approvalStepRoleDisplay['thr']}`;
-    if (request.currentApprovalStep === 'ceo') return `Pending ${approvalStepRoleDisplay['ceo']}`;
+    if (request.currentApprovalStep === 'thr') return "Pending " + approvalStepRoleDisplay['thr'];
+    if (request.currentApprovalStep === 'ceo') return "Pending " + approvalStepRoleDisplay['ceo'];
     return 'Pending Review';
   };
   
@@ -83,11 +83,14 @@ export default function DashboardPage() {
   const handleActionConfirm = async () => {
     if (!requestToAction || !currentUser || !actionType) return;
     
-    const success = await cancelTrainingRequest(requestToAction.id, currentUser.id, cancellationReason); // cancellationReason is now passed
+    let success = false;
+    if (actionType === 'cancel' || actionType === 'closeOut') {
+        success = await cancelTrainingRequest(requestToAction.id, cancellationReason); // cancellationReason is now passed
+    }
     
     if (success) {
       const toastTitle = actionType === 'cancel' ? "Request Cancelled" : "Request Closed Out";
-      const toastDescription = `Your request "${requestToAction.trainingTitle}" has been ${actionType === 'cancel' ? 'cancelled' : 'closed out'}.`;
+      const toastDescription = "Your request \"" + requestToAction.trainingTitle + "\" has been " + (actionType === 'cancel' ? 'cancelled' : 'closed out') + ".";
       toast({ title: toastTitle, description: toastDescription });
     } else {
       const toastTitle = actionType === 'cancel' ? "Cancellation Failed" : "Close Out Failed";
@@ -156,7 +159,7 @@ export default function DashboardPage() {
                   {userRequests.map((request) => (
                     <TableRow key={request.id}>
                       <TableCell className="font-medium max-w-xs truncate">
-                        <Link href={`/requests/${request.id}`} className="hover:underline" title={request.trainingTitle}>
+                        <Link href={"/requests/" + request.id} className="hover:underline" title={request.trainingTitle}>
                           {request.trainingTitle}
                         </Link>
                       </TableCell>
@@ -170,7 +173,7 @@ export default function DashboardPage() {
                       <TableCell>{format(request.submittedDate, 'MMM d, yyyy')}</TableCell>
                       <TableCell className="text-right">
                          <Button variant="ghost" size="sm" asChild className="mr-1 p-1 h-auto">
-                            <Link href={`/requests/${request.id}`} title="View Details">
+                            <Link href={"/requests/" + request.id} title="View Details">
                                 <Eye className="h-4 w-4" />
                             </Link>
                          </Button>
@@ -241,5 +244,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
