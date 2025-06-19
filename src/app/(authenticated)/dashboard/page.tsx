@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { PlusCircle, Info, Trash2, RotateCcw, Edit } from 'lucide-react';
+import { PlusCircle, Info, Trash2, Edit, RotateCcw } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,18 +28,22 @@ const approvalStepRoleDisplay: Record<ApprovalStepRole, string> = {
   supervisor: 'Supervisor',
   thr: 'THR',
   ceo: 'CEO',
+  cm: 'Capability Management'
 };
 
 export default function DashboardPage() {
   const { currentUser, trainingRequests, cancelTrainingRequest } = useAuth();
   const { toast } = useToast();
-  const [requestToCancel, setRequestToCancel] = useState<TrainingRequest | null>(null);
+  const [requestToAction, setRequestToAction] = useState<TrainingRequest | null>(null);
+  const [actionType, setActionType] = useState<'cancel' | 'closeOut' | null>(null);
+
 
   const userRequests = trainingRequests.filter(req => req.employeeId === currentUser?.id)
     .sort((a,b) => b.submittedDate.getTime() - a.submittedDate.getTime());
 
   const getStatusText = (request: TrainingRequest): string => {
-    if (request.status === 'approved') return 'Approved';
+    if (request.status === 'approved' && request.currentApprovalStep === 'cm') return 'Pending CM Processing';
+    if (request.status === 'approved') return 'Approved & Processed';
     if (request.status === 'cancelled') {
       const canceller = request.cancelledByUserId === currentUser?.id ? 'You' : 'Admin';
       return `Cancelled by ${canceller}`;
@@ -59,7 +63,8 @@ export default function DashboardPage() {
     return 'Pending Review';
   };
   
-  const getStatusVariant = (status: TrainingRequest['status']): "default" | "secondary" | "destructive" | "outline" => {
+  const getStatusVariant = (status: TrainingRequest['status'], currentStep?: TrainingRequest['currentApprovalStep']): "default" | "secondary" | "destructive" | "outline" => {
+    if (status === 'approved' && currentStep === 'cm') return 'secondary';
     switch (status) {
       case 'approved':
         return 'default'; 
@@ -68,21 +73,32 @@ export default function DashboardPage() {
       case 'rejected':
         return 'destructive';
       case 'cancelled':
-        return 'outline'; // Or maybe another variant for cancelled
+        return 'outline'; 
       default:
         return 'outline';
     }
   };
 
-  const handleCancelRequest = async () => {
-    if (!requestToCancel || !currentUser) return;
-    const success = await cancelTrainingRequest(requestToCancel.id, "Cancelled by employee.");
+  const handleActionConfirm = async () => {
+    if (!requestToAction || !currentUser || !actionType) return;
+    
+    const success = await cancelTrainingRequest(requestToAction.id, "Request actioned by employee.");
+    
     if (success) {
-      toast({ title: "Request Cancelled", description: `Your request "${requestToCancel.trainingTitle}" has been cancelled.`});
+      const toastTitle = actionType === 'cancel' ? "Request Cancelled" : "Request Closed Out";
+      const toastDescription = `Your request "${requestToAction.trainingTitle}" has been ${actionType === 'cancel' ? 'cancelled' : 'closed out'}.`;
+      toast({ title: toastTitle, description: toastDescription });
     } else {
-      toast({ variant: "destructive", title: "Cancellation Failed", description: "Could not cancel the request."});
+      const toastTitle = actionType === 'cancel' ? "Cancellation Failed" : "Close Out Failed";
+      toast({ variant: "destructive", title: toastTitle, description: "Could not complete action on the request."});
     }
-    setRequestToCancel(null);
+    setRequestToAction(null);
+    setActionType(null);
+  };
+
+  const openActionDialog = (request: TrainingRequest, type: 'cancel' | 'closeOut') => {
+    setRequestToAction(request);
+    setActionType(type);
   };
   
   return (
@@ -138,7 +154,7 @@ export default function DashboardPage() {
                       <TableCell>{format(request.startDate, 'MMM d, yyyy')} - {format(request.endDate, 'MMM d, yyyy')}</TableCell>
                       <TableCell className="text-right">${request.cost.toFixed(2)}</TableCell>
                       <TableCell className="text-center">
-                        <Badge variant={getStatusVariant(request.status)} className="whitespace-nowrap">
+                        <Badge variant={getStatusVariant(request.status, request.currentApprovalStep)} className="whitespace-nowrap">
                           {getStatusText(request)}
                         </Badge>
                       </TableCell>
@@ -146,7 +162,7 @@ export default function DashboardPage() {
                       <TableCell className="text-right">
                         {request.status === 'pending' && request.employeeId === currentUser?.id && (
                            <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm" onClick={() => setRequestToCancel(request)}>
+                            <Button variant="outline" size="sm" onClick={() => openActionDialog(request, 'cancel')}>
                               <Trash2 className="mr-1 h-3.5 w-3.5" />
                               Cancel
                             </Button>
@@ -154,12 +170,12 @@ export default function DashboardPage() {
                         )}
                         {request.status === 'rejected' && request.employeeId === currentUser?.id && (
                           <div className="flex gap-2 justify-end">
-                             <Button variant="outline" size="sm" onClick={() => alert("Revise functionality not yet implemented.")}>
+                             <Button variant="outline" size="sm" onClick={() => alert("Revise functionality: This would typically take you to a pre-filled new request form or allow editing the existing one.")}>
                               <Edit className="mr-1 h-3.5 w-3.5" />
                               Revise
                             </Button>
                             <AlertDialogTrigger asChild>
-                              <Button variant="destructive" size="sm" onClick={() => setRequestToCancel(request)}>
+                              <Button variant="destructive" size="sm" onClick={() => openActionDialog(request, 'closeOut')}>
                                 <Trash2 className="mr-1 h-3.5 w-3.5" />
                                 Close Out
                               </Button>
@@ -176,19 +192,24 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {requestToCancel && (
-        <AlertDialog open={!!requestToCancel} onOpenChange={(open) => !open && setRequestToCancel(null)}>
+      {requestToAction && actionType && (
+        <AlertDialog open={!!requestToAction} onOpenChange={(open) => !open && (setRequestToAction(null), setActionType(null))}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure you want to cancel this request?</AlertDialogTitle>
+              <AlertDialogTitle>
+                {actionType === 'cancel' ? 'Are you sure you want to cancel this request?' : 'Are you sure you want to close out this rejected request?'}
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                Training: "{requestToCancel.trainingTitle}". This action cannot be undone.
+                Training: "{requestToAction.trainingTitle}". This action cannot be undone for cancellation, and will archive a rejected request.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setRequestToCancel(null)}>Back</AlertDialogCancel>
-              <AlertDialogAction onClick={handleCancelRequest} className="bg-destructive hover:bg-destructive/90">
-                Yes, Cancel Request
+              <AlertDialogCancel onClick={() => (setRequestToAction(null), setActionType(null))}>Back</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleActionConfirm} 
+                className={actionType === 'cancel' ? "bg-destructive hover:bg-destructive/90" : undefined}
+              >
+                {actionType === 'cancel' ? 'Yes, Cancel Request' : 'Yes, Close Out Request'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -197,3 +218,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
