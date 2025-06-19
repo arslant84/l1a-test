@@ -1,6 +1,6 @@
 
 "use client";
-import type { TrainingRequest, ApprovalAction, TrainingRequestLocationMode, ProgramType, ApprovalStepRole } from '@/lib/types';
+import type { TrainingRequest, ApprovalAction, TrainingRequestLocationMode, ProgramType, ApprovalStepRole, Employee } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { format } from 'date-fns';
 import {
   CheckCircle, XCircle, FileText, User, DollarSign, CalendarDays, MessageSquare, Info,
-  Award, BookOpen, MapPin, Users, ShieldCheck, Landmark, LayoutList, MapPinned, Trash2, CheckCheck
+  Award, BookOpen, MapPin, Users, ShieldCheck, Landmark, LayoutList, MapPinned, Trash2, CheckCheck, ListChecks
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -56,7 +56,8 @@ const getOverallStatusText = (request: TrainingRequest, usersFromAuth: Employee[
     return "Cancelled by " + (cancellerUser && cancellerUser.id === request.employeeId ? 'Employee' : cancellerName);
   }
   if (request.status === 'approved' && request.currentApprovalStep === 'cm') return "Pending CM Processing";
-  if (request.status === 'approved') return 'Approved & Processed';
+  if (request.status === 'approved' && request.currentApprovalStep === 'completed') return 'Approved & Processed';
+  if (request.status === 'approved') return 'Approved'; // Fallback if CM step somehow missed but status is approved
 
   if (request.status === 'rejected') {
      const lastAction = request.approvalChain[request.approvalChain.length - 1];
@@ -112,6 +113,8 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
 
   const handleCancelAction = async () => {
     if (!currentUser) return;
+    // Pass current user's name if they are cancelling
+    const cancellerName = currentUser?.name || "User"; 
     const success = await cancelTrainingRequest(request.id, cancellationReason);
     if (success) {
       toast({
@@ -130,7 +133,7 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
     if (status === 'approved') return 'default';
     if (status === 'rejected') return 'destructive';
     if (status === 'cancelled') return 'outline';
-    return 'secondary';
+    return 'secondary'; // pending
   };
 
   const canTakeAction = !isReadOnly && currentUser && (
@@ -183,35 +186,42 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm flex-grow">
-        <div className="grid grid-cols-1 gap-2">
-           <div className="flex items-start space-x-2">
-            <BookOpen className="h-4 w-4 text-muted-foreground mt-0.5" />
-            <div><strong>Organiser:</strong> {request.organiser}</div>
-          </div>
-           <div className="flex items-start space-x-2">
-            <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-            <div><strong>Venue:</strong> {request.venue}</div>
-          </div>
-          <div className="flex items-start space-x-2">
-            <DollarSign className="h-4 w-4 text-muted-foreground mt-0.5" />
-            <div><strong>Cost:</strong> ${request.cost.toFixed(2)}</div>
-          </div>
-          <div className="flex items-start space-x-2">
-            <CalendarDays className="h-4 w-4 text-muted-foreground mt-0.5" />
-            <div><strong>Dates:</strong> {format(request.startDate, 'MMM d')} - {format(request.endDate, 'MMM d, yyyy')}</div>
-          </div>
-          <div className="flex items-start space-x-2">
-            <MapPinned className="h-4 w-4 text-muted-foreground mt-0.5" />
-            <div><strong>Mode/Location:</strong> <span className="capitalize">{locationModeDisplayNames[request.mode]}</span></div>
-          </div>
-           <div className="flex items-start space-x-2">
-            <LayoutList className="h-4 w-4 text-muted-foreground mt-0.5" />
-            <div><strong>Program Type:</strong> <span className="capitalize">{programTypeDisplayNames[request.programType]}</span></div>
-          </div>
-        </div>
+      <CardContent className="space-y-1 text-sm flex-grow">
+        <Accordion type="single" collapsible className="w-full" defaultValue="keyDetails">
+          <AccordionItem value="keyDetails">
+            <AccordionTrigger className="text-sm py-2 hover:no-underline font-semibold">
+              <div className="flex items-center">
+                <ListChecks className="h-4 w-4 mr-2 text-muted-foreground" /> Key Training Details
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="text-xs space-y-1.5 p-2 bg-muted/30 rounded-md">
+              <div className="flex items-start space-x-2">
+                <BookOpen className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div><strong>Organiser:</strong> {request.organiser}</div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div><strong>Venue:</strong> {request.venue}</div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <DollarSign className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div><strong>Cost:</strong> ${request.cost.toFixed(2)}</div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <CalendarDays className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div><strong>Dates:</strong> {format(request.startDate, 'MMM d')} - {format(request.endDate, 'MMM d, yyyy')}</div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <MapPinned className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div><strong>Mode/Location:</strong> <span className="capitalize">{locationModeDisplayNames[request.mode]}</span></div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <LayoutList className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div><strong>Program Type:</strong> <span className="capitalize">{programTypeDisplayNames[request.programType]}</span></div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
 
-        <Accordion type="single" collapsible className="w-full" defaultValue="justification">
           <AccordionItem value="justification">
             <AccordionTrigger className="text-sm py-2 hover:no-underline">
               <div className="flex items-center">
