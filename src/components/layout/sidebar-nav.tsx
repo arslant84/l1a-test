@@ -23,10 +23,10 @@ interface NavItem {
 }
 
 const allNavItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['employee', 'supervisor', 'thr', 'ceo', 'cm'] },
+  { href: '/dashboard', label: 'My Training Hub', icon: LayoutDashboard, roles: ['employee', 'supervisor', 'thr', 'ceo', 'cm'] },
   { href: '/requests/new', label: 'New Request', icon: FilePlus2, roles: ['employee', 'supervisor', 'thr', 'ceo', 'cm'] },
-  { href: '/requests/review', label: 'Review Requests', icon: ClipboardCheck, roles: ['supervisor', 'thr', 'ceo', 'cm'] }, // Added 'cm'
-  { href: '/employees', label: 'Employee Directory', icon: Users, roles: ['supervisor', 'thr', 'ceo', 'cm'] }, // Added 'cm' for consistency
+  { href: '/requests/review', label: 'Review Requests', icon: ClipboardCheck, roles: ['supervisor', 'thr', 'ceo', 'cm'] }, 
+  { href: '/employees', label: 'Employee Directory', icon: Users, roles: ['supervisor', 'thr', 'ceo', 'cm'] }, 
   { href: '/analytics', label: 'Analytics', icon: BarChartHorizontalBig, roles: ['thr', 'ceo'] },
 ];
 
@@ -50,6 +50,8 @@ export function SidebarNav() {
   
   const dashboardItem = navItems.find(item => item.href === '/dashboard');
   if (dashboardItem && (userRole === 'supervisor' || userRole === 'thr' || userRole === 'ceo' || userRole === 'cm')) {
+    // For approvers, their "dashboard" view is primarily about their own requests list, 
+    // rather than the broader "Training Hub" statistics which are more relevant to an individual employee's view of their own data.
     dashboardItem.label = 'My Requests';
   }
   
@@ -96,3 +98,4 @@ export function SidebarNav() {
     </SidebarMenu>
   );
 }
+

@@ -9,7 +9,10 @@ import { format } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { PlusCircle, Info, Trash2, Edit, Eye, RotateCcw } from 'lucide-react'; // Added RotateCcw
+import { 
+  PlusCircle, Info, Trash2, Edit, Eye, RotateCcw, 
+  ListChecks, CheckCircle2, Hourglass, XCircle, Banknote, Sigma
+} from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +45,34 @@ export default function DashboardPage() {
     return trainingRequests
       .filter(req => req.employeeId === currentUser.id)
       .sort((a,b) => b.submittedDate.getTime() - a.submittedDate.getTime());
+  }, [trainingRequests, currentUser]);
+
+  const userTrainingStats = useMemo(() => {
+    if (!currentUser) {
+      return {
+        totalRequests: 0,
+        approvedCount: 0,
+        pendingCount: 0,
+        rejectedOrCancelledCount: 0,
+        totalSpent: 0,
+        averageCost: 0,
+      };
+    }
+    const myRequests = trainingRequests.filter(req => req.employeeId === currentUser.id);
+    const approvedRequests = myRequests.filter(req => req.status === 'approved');
+    
+    const totalSpent = approvedRequests.reduce((sum, req) => sum + req.cost, 0);
+    const approvedCount = approvedRequests.length;
+    const averageCost = approvedCount > 0 ? totalSpent / approvedCount : 0;
+
+    return {
+      totalRequests: myRequests.length,
+      approvedCount,
+      pendingCount: myRequests.filter(req => req.status === 'pending').length,
+      rejectedOrCancelledCount: myRequests.filter(req => req.status === 'rejected' || req.status === 'cancelled').length,
+      totalSpent,
+      averageCost,
+    };
   }, [trainingRequests, currentUser]);
 
   const getStatusText = (request: TrainingRequest): string => {
@@ -116,8 +147,8 @@ export default function DashboardPage() {
     <div className="space-y-8 p-1 md:p-2">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight font-headline">My Training Requests</h1>
-          <p className="text-muted-foreground">View the status of your submitted training requests.</p>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">My Training Hub</h1>
+          <p className="text-muted-foreground">Overview of your training activities, statistics, and history.</p>
         </div>
         <Button asChild>
           <Link href="/requests/new">
@@ -127,16 +158,80 @@ export default function DashboardPage() {
         </Button>
       </div>
 
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
+            <ListChecks className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{userTrainingStats.totalRequests}</div>
+            <p className="text-xs text-muted-foreground">Trainings you've applied for</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Approved</CardTitle>
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{userTrainingStats.approvedCount}</div>
+            <p className="text-xs text-muted-foreground">Trainings successfully approved</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <Hourglass className="h-5 w-5 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{userTrainingStats.pendingCount}</div>
+            <p className="text-xs text-muted-foreground">Awaiting approval decisions</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Rejected/Cancelled</CardTitle>
+            <XCircle className="h-5 w-5 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{userTrainingStats.rejectedOrCancelledCount}</div>
+            <p className="text-xs text-muted-foreground">Trainings not pursued</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Spent</CardTitle>
+            <Banknote className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">${userTrainingStats.totalSpent.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">On your approved trainings</p>
+          </CardContent>
+        </Card>
+         <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Avg. Cost</CardTitle>
+            <Sigma className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">${userTrainingStats.averageCost.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">Per approved training</p>
+          </CardContent>
+        </Card>
+      </div>
+
+
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>Request History</CardTitle>
+          <CardTitle>My Training History</CardTitle>
           <CardDescription>A list of all training requests you have submitted.</CardDescription>
         </CardHeader>
         <CardContent>
           {userRequests.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Info className="h-20 w-20 text-muted-foreground mb-8" />
-              <p className="text-xl font-semibold mb-2">No Requests Found</p>
+              <p className="text-xl font-semibold mb-2">No Training History Found</p>
               <p className="text-muted-foreground mb-6">You haven't submitted any training requests yet.</p>
               <Button asChild variant="outline">
                 <Link href="/requests/new">
@@ -146,7 +241,7 @@ export default function DashboardPage() {
               </Button>
             </div>
           ) : (
-            <ScrollArea className="h-[calc(100vh-22rem)] sm:h-auto sm:max-h-[60vh]">
+            <ScrollArea className="h-[calc(100vh-30rem)] sm:h-auto sm:max-h-[50vh]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -256,3 +351,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
