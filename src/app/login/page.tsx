@@ -12,9 +12,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, LogIn } from 'lucide-react';
+import { Loader2, LogIn, ArrowLeftCircle } from 'lucide-react';
 import { Logo } from '@/components/layout/logo';
 import type { Employee } from '@/lib/types';
+import Link from 'next/link';
 
 const userRoles: [Employee['role'], ...Employee['role'][]] = ['employee', 'supervisor', 'thr', 'ceo', 'cm'];
 
@@ -127,15 +128,23 @@ export default function LoginPage() {
             </form>
           </Form>
         </CardContent>
-        <CardFooter className="flex flex-col items-start text-xs text-muted-foreground space-y-1">
-           <p>Mock emails:</p>
-           <ul className="list-disc list-inside pl-2">
-            <li>alice@example.com (employee)</li>
-            <li>carol@example.com (supervisor)</li>
-            <li>tom@example.com (thr)</li>
-            <li>grace@example.com (ceo)</li>
-            <li>charles@example.com (cm)</li>
-           </ul>
+        <CardFooter className="flex flex-col items-center text-xs text-muted-foreground space-y-3 pt-4">
+           <div className="text-center">
+            <Link href="/landing" className="inline-flex items-center text-sm text-primary hover:underline">
+              <ArrowLeftCircle className="mr-1.5 h-4 w-4" />
+              Back to Home
+            </Link>
+          </div>
+           <div>
+             <p className="font-semibold text-center mb-1">Mock emails:</p>
+             <ul className="list-disc list-inside pl-2">
+              <li>alice@example.com (employee)</li>
+              <li>carol@example.com (supervisor)</li>
+              <li>tom@example.com (thr)</li>
+              <li>grace@example.com (ceo)</li>
+              <li>charles@example.com (cm)</li>
+             </ul>
+           </div>
         </CardFooter>
       </Card>
     </div>
