@@ -32,18 +32,11 @@ export async function getDb(): Promise<Database> {
       }
       const dbFileArrayBuffer = await response.arrayBuffer();
       dbInstance = new SQL.Database(new Uint8Array(dbFileArrayBuffer));
-      // You can run PRAGMAs or initial setup here if needed
-      // e.g., dbInstance.exec('PRAGMA foreign_keys = ON;');
       console.log("sql.js database loaded successfully from", DB_PATH);
     } catch (error) {
-      console.error("Failed to load database:", error);
-      // Fallback: Create an empty database if vendors.db fails to load
-      // This is not ideal as it means data is lost, but prevents app crash.
-      // A better approach would be to ensure vendors.db is always available.
-      console.warn("Falling back to an empty in-memory database.");
+      console.error("CRITICAL: Failed to load database from public/vendors.db:", error);
+      console.warn("IMPORTANT: Falling back to an empty in-memory database. This WILL cause 'no such table' errors if vendors.db is not correctly set up in your 'public' folder with the necessary tables (e.g., 'employees', 'training_requests'). Please ensure 'public/vendors.db' exists and contains the correct schema and data.");
       dbInstance = new SQL.Database();
-      // Potentially, you could try to re-run schema creation here if vendors.db is mandatory
-      // For now, it will be an empty DB.
     }
   }
   return dbInstance;
@@ -70,7 +63,7 @@ export function parseEmployee(dbEmployee: any): Employee {
     ...dbEmployee,
     dateJoined: dbEmployee.dateJoined ? new Date(dbEmployee.dateJoined) : undefined,
     passwordLastChanged: dbEmployee.passwordLastChanged ? new Date(dbEmployee.passwordLastChanged) : null,
-    prefersEmailNotifications: !!dbEmployee.prefersEmailNotifications, // SQLite stores boolean as 0 or 1
+    prefersEmailNotifications: !!dbEmployee.prefersEmailNotifications,
     prefersInAppNotifications: !!dbEmployee.prefersInAppNotifications,
   };
 }
@@ -93,20 +86,20 @@ export function parseTrainingRequest(dbRequest: any): TrainingRequest {
   };
 }
 
-// Function to save changes (e.g., to localStorage or offer download)
-// This is a placeholder and would need a robust implementation if persistence is required.
 export async function saveDatabaseChanges(): Promise<void> {
   if (dbInstance) {
     const binaryArray = dbInstance.export();
-    // Example: Save to localStorage (limited by size)
-    // localStorage.setItem('vendors_db_snapshot', JSON.stringify(Array.from(binaryArray)));
-    // console.log("Database changes (in-memory) could be exported here.");
-    
-    // For a real application, you might offer this as a download:
-    // const blob = new Blob([binaryArray]);
-    // const link = document.createElement('a');
-    // link.href = URL.createObjectURL(blob);
-    // link.download = 'vendors_updated.db';
-    // link.click();
+    // console.log("Database changes (in-memory) could be exported here. For persistence beyond session, implement saving binaryArray.");
+    // Example: To offer download (uncomment to test)
+    /*
+    const blob = new Blob([binaryArray], {type: 'application/octet-stream'});
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'vendors_updated.db';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    console.log("Offered database for download.");
+    */
   }
 }
