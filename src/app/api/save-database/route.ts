@@ -30,8 +30,9 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(bytes);
 
     // Save the file to the public directory
+    // The filename is now derived from the uploaded file's name (e.g., l1a_approve.db or vendors.db)
     const publicDir = join(process.cwd(), 'public');
-    const filePath = join(publicDir, 'vendors.db');
+    const filePath = join(publicDir, file.name); 
     
     await writeFile(filePath, buffer);
 

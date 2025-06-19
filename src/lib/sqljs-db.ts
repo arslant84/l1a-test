@@ -6,7 +6,7 @@ import { mockEmployees } from './mock-data'; // mockTrainingRequests are now emp
 let SQL: SqlJsStatic | null = null;
 let dbInstance: Database | null = null;
 
-const DB_PATH = '/vendors.db'; // All app data (employees, requests) will go into this file
+const DB_PATH = '/l1a_approve.db'; // All app data (employees, requests) will go into this file
 const WASM_PATH = '/sql-wasm.wasm';
 
 async function initializeSqlJs(): Promise<SqlJsStatic> {
@@ -314,7 +314,7 @@ export async function saveDatabaseChanges(): Promise<void> {
       const blob = new Blob([dbArray], { type: 'application/octet-stream' });
       
       const formData = new FormData();
-      formData.append('database', blob, 'vendors.db'); 
+      formData.append('database', blob, DB_PATH.substring(1)); // Use the current DB_PATH, remove leading '/' for filename
 
       console.log('Attempting to save database to server via API...');
       const response = await fetch('/api/save-database', { 
