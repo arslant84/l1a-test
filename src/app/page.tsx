@@ -14,7 +14,7 @@ export default function HomePage() {
       if (currentUser) {
         router.replace('/dashboard');
       } else {
-        router.replace('/login');
+        router.replace('/landing'); // Changed from /login to /landing
       }
     }
   }, [currentUser, isLoading, router]);
