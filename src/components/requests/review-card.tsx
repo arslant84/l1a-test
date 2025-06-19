@@ -168,11 +168,11 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
 
   return (
     <>
-    <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
+    <Card className="w-full min-w-0 shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle className="font-headline text-lg leading-tight" title={request.trainingTitle}>{request.trainingTitle}</CardTitle>
+            <CardTitle className="font-headline text-lg leading-tight break-words" title={request.trainingTitle}>{request.trainingTitle}</CardTitle>
             <CardDescription>
               Submitted by: {request.employeeName} on {format(request.submittedDate, 'MMM d, yyyy')}
             </CardDescription>
