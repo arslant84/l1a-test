@@ -56,12 +56,13 @@ const getOverallStatusText = (request: TrainingRequest, usersFromAuth: Employee[
   return request.status.charAt(0).toUpperCase() + request.status.slice(1);
 };
 
-const getStatusVariant = (status: TrainingRequest['status'], currentStep?: TrainingRequest['currentApprovalStep']): "default" | "secondary" | "destructive" | "outline" => {
-  if (status === 'approved' && currentStep === 'cm') return 'secondary';
-  if (status === 'approved') return 'default';
+const getStatusVariant = (status: TrainingRequest['status'], currentStep?: TrainingRequest['currentApprovalStep']): "success" | "secondary" | "destructive" | "outline" => {
+  if (status === 'approved') { // This covers 'approved & processed' and 'pending CM' if status is approved
+    return 'success';
+  }
   if (status === 'rejected') return 'destructive';
   if (status === 'cancelled') return 'outline';
-  return 'secondary'; // pending
+  return 'secondary'; // pending (yellowish/grayish)
 };
 
 const programTypeDisplayNames: Record<ProgramType, string> = {
@@ -135,7 +136,7 @@ export default function TrainingRequestDetailPage() {
         const foundEmployee = users.find(u => u.id === foundRequest.employeeId);
         setEmployee(foundEmployee || null);
       } else {
-        setRequest(null); // Explicitly set to null if not found
+        setRequest(null); 
         setEmployee(null);
       }
       setIsLoading(false);
@@ -174,14 +175,19 @@ export default function TrainingRequestDetailPage() {
       </div>
 
       <Card className="shadow-lg">
-        <CardHeader className="flex flex-row justify-between items-start">
-          <div>
-            <CardTitle className="font-headline text-xl">{request.trainingTitle}</CardTitle>
-            <CardDescription>Submitted on: {format(request.submittedDate, 'PPP p')}</CardDescription>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+            <div className="flex-1">
+              <CardTitle className="font-headline text-2xl mb-1">{request.trainingTitle}</CardTitle>
+              <CardDescription>Submitted on: {format(request.submittedDate, 'PPP p')}</CardDescription>
+            </div>
+            <Badge 
+              variant={getStatusVariant(request.status, request.currentApprovalStep)} 
+              className="text-base px-4 py-2 mt-1 sm:mt-0 whitespace-nowrap self-start sm:self-center"
+            >
+              {getOverallStatusText(request, users)}
+            </Badge>
           </div>
-          <Badge variant={getStatusVariant(request.status, request.currentApprovalStep)} className="text-sm px-3 py-1">
-            {getOverallStatusText(request, users)}
-          </Badge>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-x-8 gap-y-4">
@@ -265,8 +271,7 @@ export default function TrainingRequestDetailPage() {
                   {request.approvalChain.map((action, index) => {
                     const ActionIcon = getRoleIcon(action.stepRole);
                     const roleName = approvalStepRoleDisplay[action.stepRole] || action.stepRole;
-                    const decisionVariant = action.decision === 'approved' ? 'default'
-                                           : action.decision === 'processed' ? 'secondary'
+                    const decisionBadgeVariant = action.decision === 'approved' || action.decision === 'processed' ? 'success'
                                            : 'destructive';
                     return (
                       <div key={index} className="p-3 border rounded-md bg-muted/20 hover:bg-muted/40 transition-colors">
@@ -276,7 +281,7 @@ export default function TrainingRequestDetailPage() {
                               <span className="font-semibold text-foreground">{roleName}</span>
                               <span className="text-xs text-muted-foreground">({action.userName})</span>
                            </div>
-                           <Badge variant={decisionVariant} className="text-xs capitalize">{action.decision}</Badge>
+                           <Badge variant={decisionBadgeVariant} className="text-xs capitalize">{action.decision}</Badge>
                         </div>
                         {action.notes && <p className="text-sm text-muted-foreground italic whitespace-pre-wrap py-1 px-2 border-l-2 border-primary/50 bg-background/50 rounded-r-sm">"{action.notes}"</p>}
                         <p className="text-xs text-muted-foreground/80 mt-1">{format(new Date(action.date), 'MMM d, yyyy, h:mm a')}</p>
@@ -296,5 +301,3 @@ export default function TrainingRequestDetailPage() {
     </div>
   );
 }
-
-    
