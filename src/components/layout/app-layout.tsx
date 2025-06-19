@@ -38,7 +38,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
             <UserNav />
           </header>
-          <main className="flex-1 overflow-y-auto p-6 md:p-8">
+          <main className="flex-1 overflow-y-auto pt-16 px-6 pb-6 md:px-8 md:pb-8">
             {children}
           </main>
         </SidebarInset>

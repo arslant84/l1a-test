@@ -322,10 +322,10 @@ SidebarRail.displayName = "SidebarRail"
 
 const SidebarInset = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<"main">
+  React.HTMLAttributes<HTMLDivElement> // Changed from React.ComponentProps<"main">
 >(({ className, ...props }, ref) => {
   return (
-    <main
+    <div // Changed from main to div
       ref={ref}
       className={cn(
         "relative flex min-h-svh flex-1 flex-col bg-background",
