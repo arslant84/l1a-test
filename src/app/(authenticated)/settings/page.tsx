@@ -234,13 +234,13 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <div className="md:col-span-2 space-y-6">
-          <Card className="shadow-lg">
+        <div className="md:col-span-2 flex flex-col gap-6">
+          <Card className="shadow-lg flex flex-col flex-1">
             <CardHeader>
               <CardTitle>Security</CardTitle>
               <CardDescription>Manage your password and account security.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 flex-1">
               <div className="flex items-center justify-between p-4 border rounded-md">
                 <div>
                   <h3 className="font-medium flex items-center"><KeyRound className="w-5 h-5 mr-2 text-primary" /> Password</h3>
@@ -255,12 +255,12 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
           
-          <Card className="shadow-lg">
+          <Card className="shadow-lg flex flex-col flex-1">
             <CardHeader>
               <CardTitle>Notifications</CardTitle>
               <CardDescription>Manage how you receive notifications.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 flex-1">
                <div className="flex items-center justify-between p-4 border rounded-md">
                 <div>
                   <h3 className="font-medium flex items-center"><Mail className="w-5 h-5 mr-2 text-primary" /> Email Notifications</h3>
@@ -353,3 +353,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+
