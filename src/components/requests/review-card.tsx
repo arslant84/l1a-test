@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { format } from 'date-fns';
 import {
   CheckCircle, XCircle, FileText, User, DollarSign, CalendarDays, MessageSquare, Info,
-  Award, BookOpen, MapPin, Users, ShieldCheck, Landmark, LayoutList, MapPinned, Trash2, CheckCheck, ListChecks
+  Award, BookOpen, MapPin, Users, ShieldCheck, Landmark, LayoutList, MapPinned, Trash2, CheckCheck, ListChecks, Edit
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from '../ui/input';
+import Link from 'next/link';
 
 
 interface ReviewCardProps {
@@ -57,7 +58,7 @@ const getOverallStatusText = (request: TrainingRequest, usersFromAuth: Employee[
   }
   if (request.status === 'approved' && request.currentApprovalStep === 'cm') return "Pending CM Processing";
   if (request.status === 'approved' && request.currentApprovalStep === 'completed') return 'Approved & Processed';
-  if (request.status === 'approved') return 'Approved'; // Fallback if CM step somehow missed but status is approved
+  if (request.status === 'approved') return 'Approved';
 
   if (request.status === 'rejected') {
      const lastAction = request.approvalChain[request.approvalChain.length - 1];
@@ -73,7 +74,7 @@ const getOverallStatusText = (request: TrainingRequest, usersFromAuth: Employee[
     if (request.currentApprovalStep === 'thr') return "Pending " + approvalStepRoleDisplay['thr'];
     if (request.currentApprovalStep === 'ceo') return "Pending " + approvalStepRoleDisplay['ceo'];
   }
-  return request.status.charAt(0).toUpperCase() + request.status.slice(1); // Fallback
+  return request.status.charAt(0).toUpperCase() + request.status.slice(1);
 };
 
 
@@ -113,13 +114,11 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
 
   const handleCancelAction = async () => {
     if (!currentUser) return;
-    // Pass current user's name if they are cancelling
-    const cancellerName = currentUser?.name || "User"; 
     const success = await cancelTrainingRequest(request.id, cancellationReason);
     if (success) {
       toast({
         title: "Request Cancelled",
-        description: "Request from " + request.employeeName + " has been cancelled."
+        description: "Request from " + request.employeeName + " has been cancelled by " + currentUser.name + "."
       });
       setCancellationReason('');
     } else {
@@ -133,7 +132,7 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
     if (status === 'approved') return 'default';
     if (status === 'rejected') return 'destructive';
     if (status === 'cancelled') return 'outline';
-    return 'secondary'; // pending
+    return 'secondary'; 
   };
 
   const canTakeAction = !isReadOnly && currentUser && (
@@ -145,10 +144,7 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
     )
   );
 
-  const canCancelAsApprover = !isReadOnly && currentUser &&
-    (currentUser.role === 'supervisor' || currentUser.role === 'thr' || currentUser.role === 'ceo') &&
-    request.status === 'pending' && currentUser.role === request.currentApprovalStep &&
-    (currentUser.role !== 'supervisor' || (employeeDetails && employeeDetails.managerId === currentUser.id));
+  const canEditOrCancelAsApprover = canTakeAction && currentUser?.role !== 'cm';
 
 
   const programTypeDisplayNames: Record<ProgramType, string> = {
@@ -343,10 +339,15 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
           </div>
         )}
       </CardContent>
-      {(canTakeAction || canCancelAsApprover) && (
+      {canTakeAction && (
         <CardFooter className="flex flex-col sm:flex-row justify-end gap-2 pt-3 border-t mt-auto">
-          {currentUser?.role !== 'cm' && canTakeAction && request.status === 'pending' && (
+          {currentUser?.role !== 'cm' && request.status === 'pending' && (
             <>
+              <Button variant="ghost" size="sm" asChild className="w-full sm:w-auto" title="Edit Request">
+                <Link href={`/requests/new?editId=${request.id}`}>
+                  <Edit className="mr-1.5 h-4 w-4" /> Edit
+                </Link>
+              </Button>
               <Button variant="outline" size="sm" onClick={() => handleDecisionAction('rejected')} className="w-full sm:w-auto">
                 <XCircle className="mr-1.5 h-4 w-4" /> Reject
               </Button>
@@ -355,14 +356,14 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
               </Button>
             </>
           )}
-          {currentUser?.role === 'cm' && canTakeAction && (
+          {currentUser?.role === 'cm' && (
              <Button size="sm" onClick={handleCMProcessing} className="w-full sm:w-auto">
                 <CheckCheck className="mr-1.5 h-4 w-4" /> Mark as Processed
               </Button>
           )}
-          {canCancelAsApprover && request.status === 'pending' && (
-            <Button variant="destructive" size="sm" onClick={() => setShowCancelDialog(true)} className="w-full sm:w-auto sm:ml-auto">
-                <Trash2 className="mr-1.5 h-4 w-4" /> Cancel Request
+          {canEditOrCancelAsApprover && (
+            <Button variant="destructive" size="sm" onClick={() => setShowCancelDialog(true)} className="w-full sm:w-auto sm:ml-auto" title="Cancel Request">
+                <Trash2 className="mr-1.5 h-4 w-4" /> Cancel
             </Button>
           )}
         </CardFooter>
@@ -377,19 +378,23 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
               <AlertDialogDescription>
                 Training: "{request.trainingTitle}" for {request.employeeName}.
                 <br/>
-                Please provide a reason for cancellation (optional). This action cannot be undone.
+                Please provide a reason for cancellation. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <Input
-              type="text"
-              placeholder="Reason for cancellation (optional)"
+            <Textarea // Changed from Input to Textarea for more space
+              placeholder="Reason for cancellation (required for approvers)"
               value={cancellationReason}
               onChange={(e) => setCancellationReason(e.target.value)}
-              className="mt-2"
+              className="mt-2 min-h-[60px]"
+              rows={3}
             />
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setShowCancelDialog(false)}>Back</AlertDialogCancel>
-              <AlertDialogAction onClick={handleCancelAction} className="bg-destructive hover:bg-destructive/90">
+              <AlertDialogCancel onClick={() => {setShowCancelDialog(false); setCancellationReason('');}}>Back</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleCancelAction} 
+                className="bg-destructive hover:bg-destructive/90"
+                disabled={!cancellationReason.trim() && currentUser?.role !== 'employee'} // Require reason for non-employees
+              >
                 Confirm Cancellation
               </AlertDialogAction>
             </AlertDialogFooter>

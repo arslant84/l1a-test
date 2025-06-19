@@ -10,9 +10,11 @@ import {
   addTrainingRequestAction, 
   updateRequestStatusAction,
   cancelTrainingRequestAction,
-  markRequestAsProcessedByCMAction // Added CM action
+  markRequestAsProcessedByCMAction,
+  updateTrainingRequestDetailsAction // Added new action
 } from '@/lib/client-data-service';
 import { getDb } from '@/lib/sqljs-db';
+import type { NewRequestFormValues } from '@/components/requests/new-request-form';
 
 interface AuthContextType {
   currentUser: Employee | null;
@@ -21,10 +23,11 @@ interface AuthContextType {
   logout: () => void;
   reloadCurrentUser: () => Promise<void>;
   trainingRequests: TrainingRequest[];
-  addTrainingRequest: (request: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain' | 'cancelledByUserId' | 'cancelledDate' | 'cancellationReason'>) => Promise<boolean>;
+  addTrainingRequest: (request: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain' | 'cancelledByUserId' | 'cancelledDate' | 'cancellationReason'>) => Promise<string | false>;
+  updateTrainingRequestDetails: (requestId: string, newData: NewRequestFormValues, originalRequest: TrainingRequest) => Promise<boolean>;
   updateRequestStatus: (requestId: string, decision: 'approved' | 'rejected', notes?: string) => Promise<boolean>;
   cancelTrainingRequest: (requestId: string, cancellationReason?: string) => Promise<boolean>;
-  markRequestAsProcessedByCM: (requestId: string, notes?: string) => Promise<boolean>; // Added CM processing
+  markRequestAsProcessedByCM: (requestId: string, notes?: string) => Promise<boolean>;
   users: Employee[];
 }
 
@@ -161,19 +164,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setTrainingRequests([]);
   }, []);
 
-  const addTrainingRequest = useCallback(async (requestData: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain' | 'cancelledByUserId' | 'cancelledDate' | 'cancellationReason'>): Promise<boolean> => {
+  const addTrainingRequest = useCallback(async (requestData: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain' | 'cancelledByUserId' | 'cancelledDate' | 'cancellationReason'>): Promise<string | false> => {
     if (!currentUser || !dbReady) return false;
     try {
-      const success = await addTrainingRequestAction(requestData, currentUser);
-      if (success) {
+      const newRequestId = await addTrainingRequestAction(requestData, currentUser);
+      if (newRequestId) {
         await loadInitialData(currentUser); 
       }
-      return success;
+      return newRequestId;
     } catch (error) {
       console.error("Failed to add training request:", error);
       return false;
     }
   }, [currentUser, dbReady, loadInitialData]);
+
+  const updateTrainingRequestDetails = useCallback(async (requestId: string, newData: NewRequestFormValues, originalRequest: TrainingRequest): Promise<boolean> => {
+    if (!currentUser || !dbReady) return false;
+    try {
+      const success = await updateTrainingRequestDetailsAction(requestId, newData, originalRequest.supportingDocuments, currentUser.id);
+      if (success) {
+        await loadInitialData(currentUser);
+      }
+      return success;
+    } catch (error) {
+      console.error("Failed to update training request details:", error);
+      return false;
+    }
+  }, [currentUser, dbReady, loadInitialData]);
+
 
   const updateRequestStatus = useCallback(async (requestId: string, decision: 'approved' | 'rejected', notes?: string): Promise<boolean> => {
     if (!currentUser || !dbReady) return false;
@@ -226,14 +244,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     logout, 
     reloadCurrentUser, 
     trainingRequests, 
-    addTrainingRequest, 
+    addTrainingRequest,
+    updateTrainingRequestDetails, 
     updateRequestStatus, 
     cancelTrainingRequest, 
     markRequestAsProcessedByCM,
     users 
   }), [
     currentUser, isLoading, dbReady, login, logout, reloadCurrentUser, 
-    trainingRequests, addTrainingRequest, updateRequestStatus, 
+    trainingRequests, addTrainingRequest, updateTrainingRequestDetails, updateRequestStatus, 
     cancelTrainingRequest, markRequestAsProcessedByCM, users
   ]);
 
@@ -243,4 +262,3 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     </AuthContext.Provider>
   );
 };
-

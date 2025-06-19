@@ -2,6 +2,7 @@
 // This file runs on the client-side.
 import { getDb, convertSqljsResponse, parseEmployee, parseTrainingRequest, saveDatabaseChanges } from './sqljs-db';
 import type { Employee, TrainingRequest, ApprovalAction, TrainingRequestStatus, CurrentApprovalStep, ApprovalStepRole } from '@/lib/types';
+import type { NewRequestFormValues } from '@/components/requests/new-request-form'; // Assuming this type is exported
 
 export async function loginUserAction(email: string, role: Employee['role']): Promise<Employee | null> {
   const db = await getDb();
@@ -36,10 +37,10 @@ export async function fetchAllTrainingRequestsAction(): Promise<TrainingRequest[
 export async function addTrainingRequestAction(
   requestData: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain' | 'cancelledByUserId' | 'cancelledDate' | 'cancellationReason'>,
   currentUser: Employee
-): Promise<boolean> {
+): Promise<string | false> { // Returns new request ID or false
   if (!currentUser) return false;
   const db = await getDb();
-  const newRequestId = 'req' + Date.now();
+  const newRequestId = 'req' + Date.now() + Math.random().toString(36).substring(2, 7);
   const submittedDate = new Date().toISOString();
 
   try {
@@ -55,7 +56,7 @@ export async function addTrainingRequestAction(
         requestData.venue,
         requestData.startDate.toISOString(),
         requestData.endDate.toISOString(),
-        requestData.cost, // Course Fee
+        requestData.cost,
         requestData.mode,
         requestData.programType,
         requestData.previousRelevantTraining || null,
@@ -72,12 +73,57 @@ export async function addTrainingRequestAction(
       ]
     );
     await saveDatabaseChanges(); 
-    return true;
+    return newRequestId;
   } catch (error) {
     console.error("Failed to add training request (sql.js):", error);
     return false;
   }
 }
+
+export async function updateTrainingRequestDetailsAction(
+  requestId: string,
+  newData: NewRequestFormValues,
+  originalSupportingDocs: { name: string; url?: string }[] | undefined,
+  // updatedByUserId: string // Not directly used in SQL, lastUpdated implies this
+): Promise<boolean> {
+  const db = await getDb();
+  
+  let newDocumentNames: { name: string; url?: string }[];
+  if (newData.supportingDocuments && newData.supportingDocuments.length > 0) {
+    newDocumentNames = Array.from(newData.supportingDocuments).map(file => ({ name: file.name }));
+  } else {
+    newDocumentNames = originalSupportingDocs || [];
+  }
+
+  try {
+    db.run(
+      `UPDATE training_requests SET 
+        trainingTitle = ?, justification = ?, organiser = ?, venue = ?, 
+        startDate = ?, endDate = ?, cost = ?, mode = ?, programType = ?, 
+        previousRelevantTraining = ?, supportingDocuments = ?, 
+        costCenter = ?, estimatedLogisticCost = ?, departmentApprovedBudget = ?, departmentBudgetBalance = ?,
+        lastUpdated = ? 
+      WHERE id = ?`,
+      [
+        newData.trainingTitle, newData.justification, newData.organiser, newData.venue,
+        newData.startDate.toISOString(), newData.endDate.toISOString(), newData.cost, newData.mode, newData.programType,
+        newData.previousRelevantTraining || null, JSON.stringify(newDocumentNames),
+        newData.costCenter || null,
+        newData.estimatedLogisticCost !== undefined ? newData.estimatedLogisticCost : null,
+        newData.departmentApprovedBudget !== undefined ? newData.departmentApprovedBudget : null,
+        newData.departmentBudgetBalance !== undefined ? newData.departmentBudgetBalance : null,
+        new Date().toISOString(),
+        requestId
+      ]
+    );
+    await saveDatabaseChanges();
+    return true;
+  } catch (error) {
+    console.error("Failed to update training request details (sql.js):", error);
+    return false;
+  }
+}
+
 
 export async function updateRequestStatusAction(
   requestId: string,
@@ -121,7 +167,6 @@ export async function updateRequestStatusAction(
     finalStatus = 'rejected';
     nextApprovalStep = 'completed';
   } else { 
-    // Approved path
     switch (parsedCurrentRequest.currentApprovalStep) {
       case 'supervisor':
         nextApprovalStep = 'thr';
@@ -226,11 +271,11 @@ export async function cancelTrainingRequestAction(
       'UPDATE training_requests SET status = ?, currentApprovalStep = ?, cancelledByUserId = ?, cancelledDate = ?, cancellationReason = ?, lastUpdated = ? WHERE id = ?',
       [
         'cancelled',
-        'completed',
+        'completed', // Mark as completed as it's a final state.
         cancellingUserId,
         cancelledDate,
         cancellationReason || null,
-        cancelledDate,
+        cancelledDate, // lastUpdated is also cancellation date
         requestId
       ]
     );
@@ -306,4 +351,3 @@ export async function updateUserNotificationPreferenceAction(
     return false;
   }
 }
-

@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { PlusCircle, Info, Trash2, Edit, Eye } from 'lucide-react';
+import { PlusCircle, Info, Trash2, Edit, Eye, RotateCcw } from 'lucide-react'; // Added RotateCcw
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,7 +61,6 @@ export default function DashboardPage() {
       }
       return 'Rejected';
     }
-    // Pending status
     if (request.currentApprovalStep === 'supervisor') return 'Pending Supervisor';
     if (request.currentApprovalStep === 'thr') return "Pending " + approvalStepRoleDisplay['thr'];
     if (request.currentApprovalStep === 'ceo') return "Pending " + approvalStepRoleDisplay['ceo'];
@@ -89,7 +88,7 @@ export default function DashboardPage() {
     
     let success = false;
     if (actionType === 'cancel' || actionType === 'closeOut') {
-        success = await cancelTrainingRequest(requestToAction.id, cancellationReason); // cancellationReason is now passed
+        success = await cancelTrainingRequest(requestToAction.id, cancellationReason);
     }
     
     if (success) {
@@ -102,15 +101,15 @@ export default function DashboardPage() {
     }
     setRequestToAction(null);
     setActionType(null);
-    setCancellationReason(''); // Reset reason
+    setCancellationReason('');
   };
 
-  const [cancellationReason, setCancellationReason] = useState(''); // Added for AlertDialog
+  const [cancellationReason, setCancellationReason] = useState('');
 
   const openActionDialog = (request: TrainingRequest, type: 'cancel' | 'closeOut') => {
     setRequestToAction(request);
     setActionType(type);
-    setCancellationReason(''); // Reset reason when opening dialog
+    setCancellationReason('');
   };
   
   return (
@@ -182,16 +181,25 @@ export default function DashboardPage() {
                             </Link>
                          </Button>
                         {request.status === 'pending' && request.employeeId === currentUser?.id && (
-                           <Button variant="outline" size="sm" onClick={() => openActionDialog(request, 'cancel')} className="p-1 h-auto">
+                          <div className="inline-flex gap-1">
+                            <Button variant="outline" size="sm" asChild className="p-1 h-auto" title="Edit Request">
+                               <Link href={`/requests/new?editId=${request.id}`}>
+                                <Edit className="h-3.5 w-3.5" />
+                               </Link>
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => openActionDialog(request, 'cancel')} className="p-1 h-auto" title="Cancel Request">
                              <Trash2 className="h-3.5 w-3.5" />
                            </Button>
+                          </div>
                         )}
                         {request.status === 'rejected' && request.employeeId === currentUser?.id && (
                           <div className="inline-flex gap-1">
-                             <Button variant="outline" size="sm" onClick={() => alert("Revise functionality: This would typically take you to a pre-filled new request form or allow editing the existing one.")} className="p-1 h-auto">
-                              <Edit className="h-3.5 w-3.5" />
+                             <Button variant="outline" size="sm" asChild className="p-1 h-auto" title="Revise & Resubmit">
+                                <Link href={`/requests/new?reviseFromId=${request.id}`}>
+                                 <RotateCcw className="h-3.5 w-3.5" />
+                                </Link>
                             </Button>
-                            <Button variant="destructive" size="sm" onClick={() => openActionDialog(request, 'closeOut')} className="p-1 h-auto">
+                            <Button variant="destructive" size="sm" onClick={() => openActionDialog(request, 'closeOut')} className="p-1 h-auto" title="Close Out Request">
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -248,4 +256,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

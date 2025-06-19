@@ -12,16 +12,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   CalendarIcon, Loader2, Send, UserCircle, Briefcase, Mail, Building, Award, 
   CalendarCheck2, LayoutList, MapPin, DollarSign, FileText, BookOpen, MapPinned, History, Paperclip, CalendarDays,
-  Tag, PackagePlus, Banknote, Landmark // Icons for new fields
+  Tag, PackagePlus, Banknote, Landmark, Edit3, RotateCcw // Added Edit3, RotateCcw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { useState, type ChangeEvent } from 'react';
-import type { TrainingRequestLocationMode, ProgramType } from '@/lib/types';
+import { useState, type ChangeEvent, useEffect } from 'react';
+import type { TrainingRequestLocationMode, ProgramType, TrainingRequest } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const locationModes: [TrainingRequestLocationMode, ...TrainingRequestLocationMode[]] = ['online', 'in-house', 'local', 'overseas'];
@@ -44,14 +44,13 @@ const newRequestSchema = z.object({
   venue: z.string().min(3, { message: "Venue must be at least 3 characters." }).max(200),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
-  cost: z.coerce.number().min(0, { message: "Course Fee must be a non-negative number." }), // Labelled as Course Fee
+  cost: z.coerce.number().min(0, { message: "Course Fee must be a non-negative number." }),
   mode: z.enum(locationModes, { required_error: "Mode of training is required." }),
   programType: z.enum(programTypes, { required_error: "Type of program is required." }),
   previousRelevantTraining: z.string().max(1000, {message: "Previous training details must be at most 1000 characters."}).optional(),
   supportingDocuments: z.custom<FileList>().optional()
     .refine(files => !files || Array.from(files).every(file => file.size <= 5 * 1024 * 1024), `Max file size is 5MB.`)
     .refine(files => !files || files.length <= 3, `You can upload a maximum of 3 files.`),
-  // New fields from L1A PDF
   costCenter: z.string().optional().refine(val => !val || val.length <= 100, { message: "Cost center must be at most 100 characters." }),
   estimatedLogisticCost: z.coerce.number().min(0, {message: "Estimated logistic cost must be non-negative."}).optional(),
   departmentApprovedBudget: z.coerce.number().min(0, {message: "Department approved budget must be non-negative."}).optional(),
@@ -61,7 +60,7 @@ const newRequestSchema = z.object({
   path: ["endDate"], 
 });
 
-type NewRequestFormValues = z.infer<typeof newRequestSchema>;
+export type NewRequestFormValues = z.infer<typeof newRequestSchema>;
 
 interface InfoRowProps {
   icon: React.ElementType;
@@ -79,11 +78,17 @@ const InfoRow: React.FC<InfoRowProps> = ({ icon: Icon, label, value }) => (
 
 
 export function NewRequestForm() {
-  const { currentUser, addTrainingRequest } = useAuth();
+  const { currentUser, addTrainingRequest, trainingRequests, updateTrainingRequestDetails } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+
+  const [formMode, setFormMode] = useState<'new' | 'edit' | 'reviseNew'>('new');
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [requestToLoad, setRequestToLoad] = useState<TrainingRequest | null>(null); // Stores original request for edit/revise
 
   const form = useForm<NewRequestFormValues>({
     resolver: zodResolver(newRequestSchema),
@@ -95,8 +100,61 @@ export function NewRequestForm() {
       cost: 0,
       previousRelevantTraining: '',
       costCenter: '',
+      // Dates and selects will be undefined until set
     },
   });
+
+  useEffect(() => {
+    const editId = searchParams.get('editId');
+    const reviseFromId = searchParams.get('reviseFromId');
+
+    const loadRequestData = async (id: string, mode: 'edit' | 'reviseNew') => {
+      setIsLoadingData(true);
+      const req = trainingRequests.find(r => r.id === id);
+      if (req) {
+        setRequestToLoad(req);
+        form.reset({
+          trainingTitle: req.trainingTitle,
+          justification: req.justification,
+          organiser: req.organiser,
+          venue: req.venue,
+          startDate: req.startDate, // These are already Date objects from parsing
+          endDate: req.endDate,
+          cost: req.cost,
+          mode: req.mode,
+          programType: req.programType,
+          previousRelevantTraining: req.previousRelevantTraining || '',
+          costCenter: req.costCenter || '',
+          estimatedLogisticCost: req.estimatedLogisticCost ?? undefined,
+          departmentApprovedBudget: req.departmentApprovedBudget ?? undefined,
+          departmentBudgetBalance: req.departmentBudgetBalance ?? undefined,
+        });
+        setFormMode(mode);
+         if (req.supportingDocuments && req.supportingDocuments.length > 0 && mode === 'edit') {
+            // Cannot pre-fill FileList, but can inform user
+            toast({
+                title: "Editing Request with Documents",
+                description: `This request has ${req.supportingDocuments.length} existing document(s). Uploading new files will replace them.`,
+                duration: 5000,
+            });
+        }
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not load request data to edit/revise.' });
+        router.push('/dashboard');
+      }
+      setIsLoadingData(false);
+    };
+
+    if (editId) {
+      loadRequestData(editId, 'edit');
+    } else if (reviseFromId) {
+      loadRequestData(reviseFromId, 'reviseNew');
+    } else {
+      setFormMode('new');
+      form.reset(); // Reset to default values for a truly new form
+    }
+  }, [searchParams, trainingRequests, form, toast, router]);
+
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -107,41 +165,37 @@ export function NewRequestForm() {
   };
 
   const onSubmit: SubmitHandler<NewRequestFormValues> = async (data) => {
+    if (!currentUser) {
+        toast({ variant: "destructive", title: "Error", description: "User not found." });
+        return;
+    }
     setIsSubmitting(true);
-    const documentNames = data.supportingDocuments ? Array.from(data.supportingDocuments).map(file => ({ name: file.name })) : [];
     
-    // Ensure all optional numeric fields are passed as numbers or undefined
-    const requestPayload = {
-      trainingTitle: data.trainingTitle,
-      justification: data.justification,
-      organiser: data.organiser,
-      venue: data.venue,
-      startDate: data.startDate,
-      endDate: data.endDate,
-      cost: data.cost,
-      mode: data.mode,
-      programType: data.programType,
-      previousRelevantTraining: data.previousRelevantTraining,
-      supportingDocuments: documentNames,
-      costCenter: data.costCenter,
-      estimatedLogisticCost: data.estimatedLogisticCost,
-      departmentApprovedBudget: data.departmentApprovedBudget,
-      departmentBudgetBalance: data.departmentBudgetBalance,
-    };
+    let success = false;
+    let actionType = "submitted";
 
-    const success = await addTrainingRequest(requestPayload);
+    if (formMode === 'edit' && requestToLoad) {
+      actionType = "updated";
+      success = await updateTrainingRequestDetails(requestToLoad.id, data, requestToLoad);
+    } else { // 'new' or 'reviseNew'
+      actionType = formMode === 'reviseNew' ? "resubmitted as new" : "submitted";
+      const documentNames = data.supportingDocuments ? Array.from(data.supportingDocuments).map(file => ({ name: file.name })) : [];
+      const payload = { ...data, supportingDocuments: documentNames };
+      const newId = await addTrainingRequest(payload);
+      success = !!newId;
+    }
 
     if (success) {
-      toast({ title: "Request Submitted", description: "Your training request has been successfully submitted." });
+      toast({ title: `Request ${actionType}`, description: `Your training request has been successfully ${actionType}.` });
       router.push('/dashboard');
     } else {
       toast({
         variant: "destructive",
-        title: "Submission Failed",
-        description: "Could not submit your request. Please try again.",
+        title: `${formMode === 'edit' ? 'Update' : 'Submission'} Failed`,
+        description: `Could not ${formMode === 'edit' ? 'update' : 'submit'} your request. Please try again.`,
       });
-      setIsSubmitting(false);
     }
+    setIsSubmitting(false);
   };
   
   const programTypeDisplayNames: Record<ProgramType, string> = {
@@ -162,6 +216,29 @@ export function NewRequestForm() {
     'local': 'Local (External)',
     'overseas': 'Overseas (External)',
   };
+
+  if (isLoadingData) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-4 text-muted-foreground">Loading request data...</p>
+      </div>
+    );
+  }
+
+  const getPageTitle = () => {
+    if (formMode === 'edit') return "Edit Training Request";
+    if (formMode === 'reviseNew') return "Revise & Resubmit Training Request";
+    return "New Training Request";
+  }
+  
+  const getSubmitButtonText = () => {
+    if (formMode === 'edit') return "Update Request";
+    if (formMode === 'reviseNew') return "Resubmit as New Request";
+    return "Submit Request";
+  }
+  
+  const SubmitIcon = formMode === 'edit' ? Edit3 : formMode === 'reviseNew' ? RotateCcw : Send;
 
 
   return (
@@ -186,7 +263,7 @@ export function NewRequestForm() {
         </Card>
       )}
 
-      <h2 className="text-xl font-semibold mb-1 font-headline">B. Training Proposal Particulars</h2>
+      <h2 className="text-xl font-semibold mb-1 font-headline">B. {getPageTitle()} - Training Proposal Particulars</h2>
       <p className="text-sm text-muted-foreground mb-6">Please provide all necessary information for your request.</p>
       
       <Form {...form}>
@@ -218,7 +295,7 @@ export function NewRequestForm() {
                     <MapPinned className="h-5 w-5 text-muted-foreground" />
                     <FormLabel>Program Location</FormLabel>
                   </div>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select location" />
@@ -236,14 +313,14 @@ export function NewRequestForm() {
             />
             <FormField
               control={form.control}
-              name="programType" // Also serves for "Course Category"
+              name="programType"
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center gap-2">
                     <LayoutList className="h-5 w-5 text-muted-foreground" />
                     <FormLabel>Type of Program / Course Category</FormLabel>
                   </div>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select program type" />
@@ -280,7 +357,7 @@ export function NewRequestForm() {
             />
             <FormField
               control={form.control}
-              name="cost" // This is Course Fee
+              name="cost"
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center gap-2">
@@ -403,7 +480,7 @@ export function NewRequestForm() {
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             <FormField
               control={form.control}
-              name="organiser" // Training Provider
+              name="organiser"
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center gap-2">
@@ -523,11 +600,13 @@ export function NewRequestForm() {
                   <Input type="file" multiple onChange={handleFileChange} accept=".pdf,.doc,.docx,.jpg,.png" />
                 </FormControl>
                 <FormDescription>
-                  Upload up to 3 files (PDF, DOC, DOCX, JPG, PNG). Max 5MB per file.
+                   {formMode === 'edit' && requestToLoad?.supportingDocuments && requestToLoad.supportingDocuments.length > 0
+                    ? `Currently ${requestToLoad.supportingDocuments.length} document(s) attached. Uploading new files will replace existing ones.`
+                    : "Upload up to 3 files (PDF, DOC, DOCX, JPG, PNG). Max 5MB per file."}
                 </FormDescription>
                 {selectedFiles.length > 0 && (
                   <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-                    <p className="font-medium">Selected files:</p>
+                    <p className="font-medium">New files selected for upload:</p>
                     <ul>
                       {selectedFiles.map(file => (
                         <li key={file.name} className="truncate" title={file.name}>{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</li>
@@ -540,17 +619,16 @@ export function NewRequestForm() {
             )}
           />
 
-          <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting}>
+          <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting || isLoadingData}>
             {isSubmitting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <Send className="mr-2 h-4 w-4" />
+              <SubmitIcon className="mr-2 h-4 w-4" />
             )}
-            Submit Request
+            {getSubmitButtonText()}
           </Button>
         </form>
       </Form>
     </>
   );
 }
-
