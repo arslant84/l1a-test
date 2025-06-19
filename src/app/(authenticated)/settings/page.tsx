@@ -46,7 +46,7 @@ export default function SettingsPage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [avatarRefreshTrigger, setAvatarRefreshTrigger] = useState(0); // Dummy state for forcing refresh
+  const [avatarRefreshTrigger, setAvatarRefreshTrigger] = useState(0); 
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -68,7 +68,7 @@ export default function SettingsPage() {
     if (currentUser) {
       profileForm.reset({ name: currentUser.name });
     }
-  }, [currentUser, profileForm, avatarRefreshTrigger]); // Added avatarRefreshTrigger to dependencies
+  }, [currentUser, profileForm, avatarRefreshTrigger]); 
 
   if (authLoading || !currentUser) {
     return (
@@ -135,12 +135,12 @@ export default function SettingsPage() {
     if (success) {
       toast({ title: "Picture Updated", description: "Your profile picture has been changed (using a new placeholder)." });
       await reloadCurrentUser();
-      setAvatarRefreshTrigger(prev => prev + 1); // Trigger re-render of this page
+      setAvatarRefreshTrigger(prev => prev + 1); 
     } else {
       toast({ variant: "destructive", title: "Update Failed", description: "Could not update picture." });
     }
     if(fileInputRef.current) {
-        fileInputRef.current.value = ""; // Reset file input to allow re-selection of the same file
+        fileInputRef.current.value = ""; 
     }
   };
 
@@ -148,7 +148,7 @@ export default function SettingsPage() {
   const handlePasswordChangeSubmit: SubmitHandler<PasswordFormValues> = async (data) => {
     if (!currentUser) return;
     setIsChangingPassword(true);
-    const success = await updateUserPasswordAction(currentUser.id); // No actual password check in demo
+    const success = await updateUserPasswordAction(currentUser.id); 
     if (success) {
       toast({ title: "Password Updated", description: "Your password has been successfully changed." });
       await reloadCurrentUser();
@@ -188,7 +188,7 @@ export default function SettingsPage() {
             <Form {...profileForm}>
               <form onSubmit={profileForm.handleSubmit(handleProfileSave)} className="space-y-6">
                 <div className="flex flex-col items-center space-y-4">
-                  <Avatar className="h-24 w-24" key={`${currentUser.avatarUrl}-${avatarRefreshTrigger}`}> {/* Added avatarRefreshTrigger to key */}
+                  <Avatar className="h-24 w-24" key={`${currentUser.avatarUrl}-${avatarRefreshTrigger}`}> 
                     <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} data-ai-hint="profile picture user" />
                     <AvatarFallback className="text-3xl">{getInitials(currentUser.name)}</AvatarFallback>
                   </Avatar>
