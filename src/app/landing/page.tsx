@@ -41,7 +41,7 @@ const faqs = [
 ];
 
 const hrContact = {
-  email: "hr-training@l1aapprove.com",
+  email: "hr-training@l1aportal.com", // Updated email domain
   phone: "(555) 123-4567",
   officeHours: "Monday - Friday, 9:00 AM - 5:00 PM (Local Time)",
 };
@@ -62,7 +62,7 @@ export default function LandingPage() {
       <main className="container mx-auto max-w-5xl space-y-12 mt-24 sm:mt-28 mb-12">
         <section className="text-center">
           <h1 className="text-4xl sm:text-5xl font-bold font-headline tracking-tight text-primary mb-6">
-            Invest in Your Growth with L1A Approve
+            Invest in Your Growth with L1A Portal
           </h1>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
             Streamlining training requests and approvals to empower our employees.
@@ -170,7 +170,7 @@ export default function LandingPage() {
       </main>
 
       <footer className="w-full text-center py-8 text-muted-foreground text-sm">
-        &copy; {new Date().getFullYear()} L1A Approve. All rights reserved.
+        &copy; {new Date().getFullYear()} L1A Portal. All rights reserved.
       </footer>
     </div>
   );

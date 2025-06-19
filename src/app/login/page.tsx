@@ -70,7 +70,7 @@ export default function LoginPage() {
         <CardHeader className="items-center text-center">
           <Logo className="mb-6" iconClassName="h-10 w-10" textClassName="text-3xl" />
           <CardTitle className="font-headline text-2xl">Sign In</CardTitle>
-          <CardDescription>Access your L1A Approve account. Use a mock email.</CardDescription>
+          <CardDescription>Access your L1A Portal account. Use a mock email.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>

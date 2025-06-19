@@ -3,7 +3,7 @@ import './globals.css';
 import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
-  title: 'L1A Approve - Training Management',
+  title: 'L1A Portal - Training Management',
   description: 'Manage and approve training requests efficiently.',
 };
 
