@@ -6,7 +6,7 @@ import { mockEmployees } from './mock-data'; // mockTrainingRequests are now emp
 let SQL: SqlJsStatic | null = null;
 let dbInstance: Database | null = null;
 
-const DB_PATH = '/vendors.db';
+const DB_PATH = '/vendors.db'; // All app data (employees, requests) will go into this file
 const WASM_PATH = '/sql-wasm.wasm';
 
 async function initializeSqlJs(): Promise<SqlJsStatic> {
@@ -68,38 +68,47 @@ function createTables(db: Database) {
 }
 
 function seedDatabaseWithMockData(db: Database) {
-  mockEmployees.forEach(emp => {
-    try {
-      db.run(
-        'INSERT INTO employees (id, name, email, department, role, avatarUrl, managerId, position, staffNo, academicQualification, dateJoined, passwordLastChanged, prefersEmailNotifications, prefersInAppNotifications) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          emp.id,
-          emp.name,
-          emp.email,
-          emp.department,
-          emp.role,
-          emp.avatarUrl || null,
-          emp.managerId || null,
-          emp.position || null,
-          emp.staffNo || null,
-          emp.academicQualification || null,
-          emp.dateJoined?.toISOString() || null,
-          emp.passwordLastChanged?.toISOString() || null,
-          emp.prefersEmailNotifications ? 1 : 0,
-          emp.prefersInAppNotifications ? 1 : 0,
-        ]
-      );
-    } catch (e: any) {
-        if (e && e.message && !e.message.includes('UNIQUE constraint failed')) {
-            console.error('Error seeding employee ' + emp.id + ':', e);
-        }
-    }
-  });
+  // Check if employees table is empty before seeding to avoid duplicates on re-initialization
+  let employeeCount = 0;
+  const stmtCheck = db.prepare("SELECT COUNT(*) as count FROM employees");
+  if (stmtCheck.step()) {
+    employeeCount = stmtCheck.getAsObject().count as number;
+  }
+  stmtCheck.free();
 
-  // mockTrainingRequests is now empty, so no requests are seeded by default.
-  // If you had mock requests, the loop would be here.
-
-  console.log("Database seeded with mock employee data (if tables were empty or newly created). No mock training requests are seeded by default.");
+  if (employeeCount === 0) {
+    mockEmployees.forEach(emp => {
+      try {
+        db.run(
+          'INSERT INTO employees (id, name, email, department, role, avatarUrl, managerId, position, staffNo, academicQualification, dateJoined, passwordLastChanged, prefersEmailNotifications, prefersInAppNotifications) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [
+            emp.id,
+            emp.name,
+            emp.email,
+            emp.department,
+            emp.role,
+            emp.avatarUrl || null,
+            emp.managerId || null,
+            emp.position || null,
+            emp.staffNo || null,
+            emp.academicQualification || null,
+            emp.dateJoined?.toISOString() || null,
+            emp.passwordLastChanged?.toISOString() || null,
+            emp.prefersEmailNotifications ? 1 : 0,
+            emp.prefersInAppNotifications ? 1 : 0,
+          ]
+        );
+      } catch (e: any) {
+          if (e && e.message && !e.message.includes('UNIQUE constraint failed')) {
+              console.error('Error seeding employee ' + emp.id + ':', e);
+          }
+      }
+    });
+    console.log("Mock employees seeded into empty employees table.");
+  } else {
+    console.log("Employees table already contains data, skipping mock employee seeding.");
+  }
+  // mockTrainingRequests is empty, so no requests are seeded.
 }
 
 export async function getDb(): Promise<Database> {
@@ -109,8 +118,7 @@ export async function getDb(): Promise<Database> {
 
   const sqlModule = await initializeSqlJs();
   let dbFileArrayBuffer: ArrayBuffer | null = null;
-  let dbLoadedFromFile = false;
-  let requiresInitialization = false;
+  let requiresInitialization = false; // Flag to track if createTables/seedData is needed
 
   try {
     console.log('Attempting to fetch database file from ' + DB_PATH + '...');
@@ -119,10 +127,9 @@ export async function getDb(): Promise<Database> {
       dbFileArrayBuffer = await response.arrayBuffer();
       if (dbFileArrayBuffer && dbFileArrayBuffer.byteLength > 0) {
         dbInstance = new sqlModule.Database(new Uint8Array(dbFileArrayBuffer));
-        console.log('sql.js database instance initialized using ' + DB_PATH + '. Verifying schema...');
-        dbLoadedFromFile = true;
+        console.log('sql.js database instance initialized from ' + DB_PATH + '. Verifying schema...');
 
-        // Check if tables exist in the loaded DB
+        // Check if essential tables exist
         const tableCheckStmt = dbInstance.prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND (name='employees' OR name='training_requests')");
         let tablesFound = 0;
         if (tableCheckStmt.step()) {
@@ -131,46 +138,54 @@ export async function getDb(): Promise<Database> {
         tableCheckStmt.free();
 
         if (tablesFound < 2) {
-          console.warn(DB_PATH + ' was loaded but is missing required tables (found ' + tablesFound + '). It will be initialized with schema and mock data.');
+          console.warn(DB_PATH + ' was loaded but is missing required tables (found ' + tablesFound + '). Will attempt to initialize schema and seed mock data.');
           requiresInitialization = true;
         } else {
           console.log('Database loaded from ' + DB_PATH + ' and required tables appear to exist.');
+           // Check if employees table is empty, if so, seed mock data
+            let employeeCount = 0;
+            const stmtEmpCheck = dbInstance.prepare("SELECT COUNT(*) as count FROM employees");
+            if (stmtEmpCheck.step()) {
+                employeeCount = stmtEmpCheck.getAsObject().count as number;
+            }
+            stmtEmpCheck.free();
+            if (employeeCount === 0) {
+                console.log("Employees table is empty in loaded DB, seeding mock employees.");
+                requiresInitialization = true; // Set to true to run seedDatabaseWithMockData
+            }
         }
       } else {
         console.warn('Fetched ' + DB_PATH + ', but it was empty. A new in-memory DB will be created and initialized.');
-        requiresInitialization = true; // Will create a new DB instance below
+        dbInstance = new sqlModule.Database(); // Create new instance for initialization
+        requiresInitialization = true;
       }
     } else {
       console.warn('Failed to fetch database file from ' + DB_PATH + ' (Status: ' + response.status + '). A new in-memory DB will be created and initialized.');
-      requiresInitialization = true; // Will create a new DB instance below
+      dbInstance = new sqlModule.Database(); // Create new instance for initialization
+      requiresInitialization = true;
     }
   } catch (error) {
     console.error('CRITICAL: Error during fetch or initial load of ' + DB_PATH + ': ' + (error instanceof Error ? error.message : String(error)) + '. A new in-memory DB will be created and initialized.');
-    requiresInitialization = true; // Will create a new DB instance below
+    dbInstance = new sqlModule.Database(); // Create new instance for initialization
+    requiresInitialization = true;
   }
 
-  if (requiresInitialization && !dbLoadedFromFile) { // If fetch failed or file was empty, create new instance
+  if (!dbInstance) { // Should not happen if logic above is correct, but as a safeguard
+    console.error("FALLBACK: dbInstance is null. Creating a new empty in-memory database.");
     dbInstance = new sqlModule.Database();
-    console.log('Created a new empty in-memory database instance.');
+    requiresInitialization = true; // Needs tables and data
   }
   
-  if (dbInstance && requiresInitialization) { // If new instance OR loaded but needs init
-     console.log('Attempting to create tables and seed mock data for the current DB instance...');
+  if (requiresInitialization) {
+    console.log('Initializing database schema and/or seeding mock data...');
     try {
-      createTables(dbInstance);
-      seedDatabaseWithMockData(dbInstance);
-    } catch (seedError) {
-      console.error("CRITICAL: Failed to create tables or seed mock data in the DB instance:", seedError);
-      // dbInstance might be in a bad state here, but we'll return it and let operations fail.
+      createTables(dbInstance); // Ensures tables exist
+      seedDatabaseWithMockData(dbInstance); // Seeds mock employees if employees table is empty
+    } catch (initError) {
+      console.error("CRITICAL: Failed to create tables or seed mock data in the DB instance:", initError);
     }
   }
 
-  if (!dbInstance) {
-    // This should ideally not be reached if logic above is correct
-    console.error("ULTIMATE FALLBACK: dbInstance is still null. Creating a new empty in-memory database. App will likely not function correctly without data and schema.");
-    dbInstance = new sqlModule.Database();
-    createTables(dbInstance); // Try to create schema at least
-  }
   return dbInstance;
 }
 
@@ -194,8 +209,8 @@ export function parseEmployee(dbEmployee: any): Employee {
     ...dbEmployee,
     dateJoined: dbEmployee.dateJoined ? new Date(dbEmployee.dateJoined) : undefined,
     passwordLastChanged: dbEmployee.passwordLastChanged ? new Date(dbEmployee.passwordLastChanged) : null,
-    prefersEmailNotifications: !!dbEmployee.prefersEmailNotifications, // Convert 0/1 to boolean
-    prefersInAppNotifications: !!dbEmployee.prefersInAppNotifications, // Convert 0/1 to boolean
+    prefersEmailNotifications: !!dbEmployee.prefersEmailNotifications, 
+    prefersInAppNotifications: !!dbEmployee.prefersInAppNotifications, 
   };
 }
 
@@ -207,7 +222,7 @@ export function parseTrainingRequest(dbRequest: any): TrainingRequest {
       if (Array.isArray(parsedChain)) {
         approvalChain = parsedChain.map((action: any) => ({
           ...action,
-          date: action.date ? new Date(action.date) : new Date(), // Fallback for safety
+          date: action.date ? new Date(action.date) : new Date(), 
         }));
       }
     } catch (e) {
@@ -240,13 +255,34 @@ export function parseTrainingRequest(dbRequest: any): TrainingRequest {
   };
 }
 
-// This function currently does NOT persist changes to public/vendors.db on the filesystem.
-// It would require a mechanism to send the database binary back to the server or prompt user download.
-// For this client-side only demo with sql.js, "saving" means the in-memory copy is up-to-date for the current session.
 export async function saveDatabaseChanges(): Promise<void> {
   if (dbInstance) {
-    // To actually save, you would do: const binaryArray = dbInstance.export();
-    // Then handle binaryArray (e.g., offer for download, send to a server API if one existed).
-    console.log("Database changes are in-memory with sql.js. To persist these changes across sessions, the public/vendors.db file on the server would need to be updated. This function does not do that automatically from the client.");
+    try {
+      const dbArray = dbInstance.export();
+      const blob = new Blob([dbArray], { type: 'application/octet-stream' });
+      
+      const formData = new FormData();
+      formData.append('database', blob, 'vendors.db'); // Filename for the server
+
+      console.log('Attempting to save database to server via API...');
+      const response = await fetch('/api/save-database', { // Ensure this matches your API route
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response from server' }));
+        console.error('Server responded with an error during save:', response.status, errorData);
+        throw new Error('Failed to save database file to server. Status: ' + response.status + ', Message: ' + (errorData.error || 'Unknown error'));
+      }
+      const successData = await response.json();
+      console.log('Database saved to server successfully.', successData.message);
+    } catch (error) {
+      console.error('Error saving database via API:', error);
+      // Optional: re-throw or handle more gracefully depending on app requirements
+      // throw error; 
+    }
+  } else {
+    console.warn("Attempted to save database, but dbInstance is null.");
   }
 }
