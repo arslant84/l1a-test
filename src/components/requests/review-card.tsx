@@ -53,24 +53,24 @@ const getOverallStatusText = (request: TrainingRequest): string => {
   if (request.status === 'cancelled') {
     const cancellerUser = request.cancelledByUserId ? users.find(u => u.id === request.cancelledByUserId) : null;
     const cancellerName = cancellerUser ? cancellerUser.name : 'System';
-    return `Cancelled by ${cancellerUser && cancellerUser.id === request.employeeId ? 'Employee' : cancellerName}`;
+    return "Cancelled by " + (cancellerUser && cancellerUser.id === request.employeeId ? 'Employee' : cancellerName);
   }
-  if (request.status === 'approved' && request.currentApprovalStep === 'cm') return `Pending CM Processing`;
+  if (request.status === 'approved' && request.currentApprovalStep === 'cm') return "Pending CM Processing";
   if (request.status === 'approved') return 'Approved & Processed';
 
   if (request.status === 'rejected') {
      const lastAction = request.approvalChain[request.approvalChain.length - 1];
      if (lastAction?.decision === 'rejected') {
        const roleName = approvalStepRoleDisplay[lastAction.stepRole] || lastAction.stepRole;
-       return `Rejected by ${roleName}`;
+       return "Rejected by " + roleName;
      }
      return 'Rejected';
   }
   
   if (request.status === 'pending') {
-    if (request.currentApprovalStep === 'supervisor') return `Pending ${approvalStepRoleDisplay['supervisor']}`;
-    if (request.currentApprovalStep === 'thr') return `Pending ${approvalStepRoleDisplay['thr']}`;
-    if (request.currentApprovalStep === 'ceo') return `Pending ${approvalStepRoleDisplay['ceo']}`;
+    if (request.currentApprovalStep === 'supervisor') return "Pending " + approvalStepRoleDisplay['supervisor'];
+    if (request.currentApprovalStep === 'thr') return "Pending " + approvalStepRoleDisplay['thr'];
+    if (request.currentApprovalStep === 'ceo') return "Pending " + approvalStepRoleDisplay['ceo'];
   }
   return request.status.charAt(0).toUpperCase() + request.status.slice(1); // Fallback
 };
@@ -115,7 +115,8 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
 
   const handleCancelAction = async () => {
     if (!currentUser) return;
-    const success = await cancelTrainingRequest(request.id, cancellationReason || "Cancelled by approver.");
+    // Use the current user's ID and name for cancellation by an approver
+    const success = await cancelTrainingRequest(request.id, currentUser.id, currentUser.name, cancellationReason || "Cancelled by approver.");
     if (success) {
       toast({ 
         title: "Request Cancelled", 
@@ -324,9 +325,9 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
         
         {canTakeAction && (
           <div className="mt-4 pt-3 border-t">
-            <label htmlFor={`notes-${request.id}`} className="block text-xs font-medium text-foreground mb-1">Your Notes (Optional):</label>
+            <label htmlFor={"notes-" + request.id} className="block text-xs font-medium text-foreground mb-1">Your Notes (Optional):</label>
             <Textarea
-              id={`notes-${request.id}`}
+              id={"notes-" + request.id}
               value={actionNotes}
               onChange={(e) => setActionNotes(e.target.value)}
               placeholder={currentUser?.role === 'cm' ? "Add processing notes..." : "Provide reasoning for approval or rejection..."}
@@ -336,9 +337,9 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
           </div>
         )}
       </CardContent>
-      {(canTakeAction || canCancelAsApprover) && request.status === 'pending' && (
+      {(canTakeAction || canCancelAsApprover) && (request.status === 'pending' || (currentUser?.role === 'cm' && request.status === 'approved' && request.currentApprovalStep === 'cm')) && (
         <CardFooter className="flex flex-col sm:flex-row justify-end gap-2 pt-3 border-t mt-auto">
-          {currentUser?.role !== 'cm' && canTakeAction && ( 
+          {currentUser?.role !== 'cm' && canTakeAction && request.status === 'pending' && ( 
             <>
               <Button variant="outline" size="sm" onClick={() => handleDecisionAction('rejected')} className="w-full sm:w-auto">
                 <XCircle className="mr-1.5 h-4 w-4" /> Reject
@@ -348,12 +349,12 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
               </Button>
             </>
           )}
-          {currentUser?.role === 'cm' && canTakeAction && ( 
+          {currentUser?.role === 'cm' && canTakeAction && request.status === 'approved' && request.currentApprovalStep === 'cm' && ( 
              <Button size="sm" onClick={handleCMProcessing} className="w-full sm:w-auto">
                 <CheckCheck className="mr-1.5 h-4 w-4" /> Mark as Processed
               </Button>
           )}
-          {canCancelAsApprover && (
+          {canCancelAsApprover && request.status === 'pending' && (
             <Button variant="destructive" size="sm" onClick={() => setShowCancelDialog(true)} className="w-full sm:w-auto sm:ml-auto">
                 <Trash2 className="mr-1.5 h-4 w-4" /> Cancel Request
             </Button>
