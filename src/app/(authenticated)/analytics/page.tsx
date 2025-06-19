@@ -3,14 +3,20 @@
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart"
-// Import Bar and Pie directly for types, dynamic imports will handle loading
 import type { BarChartProps, PieChartProps } from 'recharts';
-import { Cell, Pie, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts'; // Keep these for non-dynamic parts
-import { AlertTriangle, Hourglass, CheckCircle2, XCircle, Banknote, CalendarClock, Users2, Building2, BarChart3, PieChartIcon, Loader2 } from 'lucide-react';
-import type { Employee } from '@/lib/types';
-import { useMemo } from 'react';
-import { format, subMonths, getYear, getMonth, isWithinInterval } from 'date-fns';
+import { Cell, Pie, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts';
+import { AlertTriangle, Hourglass, CheckCircle2, XCircle, Banknote, CalendarClock, Users2, Building2, BarChart3, PieChartIcon, Loader2, CalendarRange } from 'lucide-react';
+import type { Employee, TrainingRequest } from '@/lib/types';
+import React, { useState, useMemo } from 'react';
+import { format, subMonths, getYear, getMonth, isWithinInterval, startOfYear, endOfYear, subYears, eachMonthOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import dynamic from 'next/dynamic';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const CHART_COLORS = {
   pending: "hsl(var(--chart-1))",
@@ -30,36 +36,98 @@ const DynamicPieChart = dynamic(() => import('recharts').then(mod => mod.PieChar
   ssr: false
 });
 
+type PeriodValue = 'current_year' | 'last_year' | 'last_12_months' | 'last_6_months' | 'all_time';
+
+interface PeriodOption {
+  value: PeriodValue;
+  label: string;
+}
+
+const periodOptions: PeriodOption[] = [
+  { value: 'current_year', label: 'Current Year' },
+  { value: 'last_year', label: 'Last Year' },
+  { value: 'last_12_months', label: 'Last 12 Months' },
+  { value: 'last_6_months', label: 'Last 6 Months' },
+  { value: 'all_time', label: 'All Time' },
+];
+
+function getDateRangeForPeriod(period: PeriodValue): { start: Date | null, end: Date | null } {
+  const now = new Date();
+  switch (period) {
+    case 'current_year':
+      return { start: startOfYear(now), end: now };
+    case 'last_year':
+      const lastYearDate = subYears(now, 1);
+      return { start: startOfYear(lastYearDate), end: endOfYear(lastYearDate) };
+    case 'last_12_months':
+      return { start: subMonths(now, 11), end: now }; // start from beginning of the month 12 months ago
+    case 'last_6_months':
+      return { start: subMonths(now, 5), end: now }; // start from beginning of the month 6 months ago
+    case 'all_time':
+    default:
+      return { start: null, end: null };
+  }
+}
+
+function getPeriodDisplayLabel(period: PeriodValue): string {
+  const now = new Date();
+  switch (period) {
+    case 'current_year':
+      return `Current Year (${getYear(now)})`;
+    case 'last_year':
+      return `Last Year (${getYear(subYears(now, 1))})`;
+    case 'last_12_months':
+      return 'Last 12 Months';
+    case 'last_6_months':
+      return 'Last 6 Months';
+    case 'all_time':
+    default:
+      return 'All Time';
+  }
+}
+
 
 export default function AnalyticsPage() {
   const { currentUser, trainingRequests, users } = useAuth();
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodValue>('current_year');
 
   const allowedViewRoles: Employee['role'][] = ['thr', 'ceo'];
 
-  const currentYear = getYear(new Date());
+  const dateRange = useMemo(() => getDateRangeForPeriod(selectedPeriod), [selectedPeriod]);
+  const periodLabel = useMemo(() => getPeriodDisplayLabel(selectedPeriod), [selectedPeriod]);
+
+  const filteredRequests = useMemo(() => {
+    if (!dateRange.start || !dateRange.end) {
+      return trainingRequests; // All Time
+    }
+    return trainingRequests.filter(req => 
+      isWithinInterval(req.submittedDate, { start: dateRange.start!, end: dateRange.end! })
+    );
+  }, [trainingRequests, dateRange]);
+
 
   const metrics = useMemo(() => {
-    const totalPending = trainingRequests.filter(req => req.status === 'pending').length;
+    const totalPending = trainingRequests.filter(req => req.status === 'pending').length; // Live pending, not period dependent
     
-    const requestsThisYear = trainingRequests.filter(req => getYear(req.submittedDate) === currentYear);
-    const totalApprovedThisYear = requestsThisYear.filter(req => req.status === 'approved').length;
-    const totalRejectedThisYear = requestsThisYear.filter(req => req.status === 'rejected').length;
+    const relevantRequests = filteredRequests; // Use period-filtered requests
+    const totalApprovedInPeriod = relevantRequests.filter(req => req.status === 'approved').length;
+    const totalRejectedInPeriod = relevantRequests.filter(req => req.status === 'rejected').length;
 
-    const approvedCostsThisYear = requestsThisYear
+    const approvedCostsInPeriod = relevantRequests
       .filter(req => req.status === 'approved')
       .reduce((sum, req) => sum + req.cost, 0);
-    const averageCostApprovedThisYear = totalApprovedThisYear > 0 ? approvedCostsThisYear / totalApprovedThisYear : 0;
+    const averageCostApprovedInPeriod = totalApprovedInPeriod > 0 ? approvedCostsInPeriod / totalApprovedInPeriod : 0;
 
     return {
       totalPending,
-      totalApprovedThisYear,
-      totalRejectedThisYear,
-      averageCostApprovedThisYear,
+      totalApprovedInPeriod,
+      totalRejectedInPeriod,
+      averageCostApprovedInPeriod,
     };
-  }, [trainingRequests, currentYear]);
+  }, [trainingRequests, filteredRequests]);
 
   const requestsByStatusData = useMemo(() => {
-    const counts = trainingRequests.reduce((acc, req) => {
+    const counts = filteredRequests.reduce((acc, req) => { // Use period-filtered requests
       acc[req.status] = (acc[req.status] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -69,36 +137,47 @@ export default function AnalyticsPage() {
       { name: 'Approved', value: counts.approved || 0, fill: CHART_COLORS.approved },
       { name: 'Rejected', value: counts.rejected || 0, fill: CHART_COLORS.rejected },
     ].filter(item => item.value > 0);
-  }, [trainingRequests]);
+  }, [filteredRequests]);
 
   const monthlySubmissionsData = useMemo(() => {
-    const twelveMonthsAgo = subMonths(new Date(), 11);
-    const monthsData = Array.from({ length: 12 }).map((_, i) => {
-      const monthDate = subMonths(new Date(), 11 - i);
-      return {
-        name: format(monthDate, 'MMM yy'),
-        date: monthDate,
-        submissions: 0,
-      };
-    });
+    if (selectedPeriod === 'all_time') {
+      // Aggregate by year for "All Time"
+      const yearlyCounts: Record<string, number> = {};
+      trainingRequests.forEach(req => {
+        const year = getYear(req.submittedDate).toString();
+        yearlyCounts[year] = (yearlyCounts[year] || 0) + 1;
+      });
+      return Object.entries(yearlyCounts)
+        .map(([year, count]) => ({ name: year, Submissions: count }))
+        .sort((a,b) => parseInt(a.name) - parseInt(b.name));
+    }
 
-    trainingRequests.forEach(req => {
-      if (isWithinInterval(req.submittedDate, { start: twelveMonthsAgo, end: new Date() })) {
-        const monthName = format(req.submittedDate, 'MMM yy');
-        const monthEntry = monthsData.find(m => m.name === monthName);
-        if (monthEntry) {
-          monthEntry.submissions += 1;
-        }
+    const { start, end } = dateRange;
+    if (!start || !end) return [];
+
+    const monthsInPeriod = eachMonthOfInterval({ start: startOfMonth(start), end: endOfMonth(end) });
+    const monthsData = monthsInPeriod.map(monthDate => ({
+      name: format(monthDate, 'MMM yy'),
+      date: monthDate,
+      submissions: 0,
+    }));
+
+    filteredRequests.forEach(req => { // Use period-filtered requests
+      const monthName = format(req.submittedDate, 'MMM yy');
+      const monthEntry = monthsData.find(m => m.name === monthName);
+      if (monthEntry) {
+        monthEntry.submissions += 1;
       }
     });
     return monthsData.map(m => ({ name: m.name, Submissions: m.submissions }));
-  }, [trainingRequests]);
+  }, [trainingRequests, filteredRequests, dateRange, selectedPeriod]);
+
 
   const spendingByDepartmentData = useMemo(() => {
     const departmentSpending: Record<string, number> = {};
-    const requestsApprovedThisYear = trainingRequests.filter(req => req.status === 'approved' && getYear(req.submittedDate) === currentYear);
+    const requestsApprovedInPeriod = filteredRequests.filter(req => req.status === 'approved'); // Use period-filtered requests
 
-    requestsApprovedThisYear.forEach(req => {
+    requestsApprovedInPeriod.forEach(req => {
       const employee = users.find(u => u.id === req.employeeId);
       if (employee && employee.department) {
         departmentSpending[employee.department] = (departmentSpending[employee.department] || 0) + req.cost;
@@ -109,10 +188,10 @@ export default function AnalyticsPage() {
       .map(([name, totalCost], index) => ({ 
         name, 
         "Total Cost": totalCost,
-        fill: `hsl(var(--chart-${(index % 5) + 1}))` // Cycle through chart colors
+        fill: `hsl(var(--chart-${(index % 5) + 1}))`
       }))
       .sort((a,b) => b["Total Cost"] - a["Total Cost"]);
-  }, [trainingRequests, users, currentYear]);
+  }, [filteredRequests, users]);
 
 
   if (!currentUser || !allowedViewRoles.includes(currentUser.role)) {
@@ -143,10 +222,26 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-8 p-1 md:p-2">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight font-headline">Training Analytics</h1>
-        <p className="text-muted-foreground">Overview of training request metrics and trends.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">Training Analytics</h1>
+          <p className="text-muted-foreground">Overview of training request metrics and trends.</p>
+        </div>
+         <div className="flex items-center gap-2 w-full sm:w-auto">
+           <CalendarRange className="h-5 w-5 text-muted-foreground" />
+           <Select value={selectedPeriod} onValueChange={(value) => setSelectedPeriod(value as PeriodValue)}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="Select period" />
+            </SelectTrigger>
+            <SelectContent>
+              {periodOptions.map(option => (
+                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+         </div>
       </div>
+
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="shadow-lg">
@@ -156,27 +251,27 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{metrics.totalPending}</div>
-            <p className="text-xs text-muted-foreground">Requests awaiting approval</p>
+            <p className="text-xs text-muted-foreground">Requests awaiting approval (live)</p>
           </CardContent>
         </Card>
         <Card className="shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Approved This Year</CardTitle>
+            <CardTitle className="text-sm font-medium">Approved</CardTitle>
             <CheckCircle2 className="h-5 w-5 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{metrics.totalApprovedThisYear}</div>
-            <p className="text-xs text-muted-foreground">For {currentYear}</p>
+            <div className="text-3xl font-bold">{metrics.totalApprovedInPeriod}</div>
+            <p className="text-xs text-muted-foreground">Submitted in {periodLabel}</p>
           </CardContent>
         </Card>
         <Card className="shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rejected This Year</CardTitle>
+            <CardTitle className="text-sm font-medium">Rejected</CardTitle>
             <XCircle className="h-5 w-5 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{metrics.totalRejectedThisYear}</div>
-            <p className="text-xs text-muted-foreground">For {currentYear}</p>
+            <div className="text-3xl font-bold">{metrics.totalRejectedInPeriod}</div>
+            <p className="text-xs text-muted-foreground">Submitted in {periodLabel}</p>
           </CardContent>
         </Card>
         <Card className="shadow-lg">
@@ -185,8 +280,8 @@ export default function AnalyticsPage() {
             <Banknote className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">${metrics.averageCostApprovedThisYear.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">Per training, this year</p>
+            <div className="text-3xl font-bold">${metrics.averageCostApprovedInPeriod.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">Submitted & Approved in {periodLabel}</p>
           </CardContent>
         </Card>
       </div>
@@ -196,22 +291,29 @@ export default function AnalyticsPage() {
           <CardHeader>
              <div className="flex items-center gap-2">
                 <PieChartIcon className="h-6 w-6 text-primary" />
-                <CardTitle>Requests by Status (All Time)</CardTitle>
+                <CardTitle>Requests by Status</CardTitle>
             </div>
-            <CardDescription>Distribution of all training requests by their current status.</CardDescription>
+            <CardDescription>Distribution of training requests submitted in {periodLabel}.</CardDescription>
           </CardHeader>
           <CardContent className="h-[350px]">
-            <ChartContainer config={chartConfigStatus} className="min-h-[300px]">
-              <DynamicPieChart>
-                <ChartTooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
-                <Pie data={requestsByStatusData} dataKey="value" nameKey="name" labelLine={false} label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}>
-                   {requestsByStatusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <ChartLegend content={<ChartLegendContent />} />
-              </DynamicPieChart>
-            </ChartContainer>
+            {requestsByStatusData.length > 0 ? (
+                <ChartContainer config={chartConfigStatus} className="min-h-[300px]">
+                <DynamicPieChart>
+                    <ChartTooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
+                    <Pie data={requestsByStatusData} dataKey="value" nameKey="name" labelLine={false} label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}>
+                    {requestsByStatusData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                    </Pie>
+                    <ChartLegend content={<ChartLegendContent />} />
+                </DynamicPieChart>
+                </ChartContainer>
+            ) : (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <PieChartIcon className="w-16 h-16 mb-4" />
+                    <p className="text-lg">No request data for this period.</p>
+                </div>
+            )}
           </CardContent>
         </Card>
         
@@ -219,22 +321,31 @@ export default function AnalyticsPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
                 <CalendarClock className="h-6 w-6 text-primary" />
-                <CardTitle>Monthly Submissions (Last 12 Months)</CardTitle>
+                <CardTitle>
+                    {selectedPeriod === 'all_time' ? 'Yearly Submissions' : 'Monthly Submissions'}
+                </CardTitle>
             </div>
-            <CardDescription>Number of training requests submitted per month.</CardDescription>
+            <CardDescription>Number of training requests submitted in {periodLabel}.</CardDescription>
           </CardHeader>
           <CardContent className="h-[350px]">
-            <ChartContainer config={chartConfigMonthly} className="min-h-[300px]">
-              <DynamicBarChart data={monthlySubmissionsData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-30} textAnchor="end" height={50} interval={0} fontSize={10} />
-                <YAxis tickLine={false} axisLine={false} tickMargin={8} width={30} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="Submissions" fill="var(--color-Submissions)" radius={4}>
-                   <LabelList dataKey="Submissions" position="top" offset={5} fontSize={10} formatter={(value: number) => value > 0 ? value : ''} />
-                </Bar>
-              </DynamicBarChart>
-            </ChartContainer>
+            {monthlySubmissionsData.length > 0 ? (
+                <ChartContainer config={chartConfigMonthly} className="min-h-[300px]">
+                <DynamicBarChart data={monthlySubmissionsData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={selectedPeriod === 'all_time' ? 0 : -30} textAnchor={selectedPeriod === 'all_time' ? "middle" : "end"} height={selectedPeriod === 'all_time' ? 30 : 50} interval={0} fontSize={10} />
+                    <YAxis tickLine={false} axisLine={false} tickMargin={8} width={30} allowDecimals={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="Submissions" fill="var(--color-Submissions)" radius={4}>
+                    <LabelList dataKey="Submissions" position="top" offset={5} fontSize={10} formatter={(value: number) => value > 0 ? value : ''} />
+                    </Bar>
+                </DynamicBarChart>
+                </ChartContainer>
+            ) : (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <CalendarClock className="w-16 h-16 mb-4" />
+                    <p className="text-lg">No submission data for this period.</p>
+                </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -243,9 +354,9 @@ export default function AnalyticsPage() {
           <CardHeader>
              <div className="flex items-center gap-2">
                 <Building2 className="h-6 w-6 text-primary" />
-                <CardTitle>Approved Spending by Department (This Year)</CardTitle>
+                <CardTitle>Approved Spending by Department</CardTitle>
             </div>
-            <CardDescription>Total cost of approved training requests per department for {currentYear}.</CardDescription>
+            <CardDescription>Total cost of approved training requests (submitted in {periodLabel}) per department.</CardDescription>
           </CardHeader>
           <CardContent className="h-[400px]">
              {spendingByDepartmentData.length > 0 ? (
@@ -261,13 +372,14 @@ export default function AnalyticsPage() {
                       ))}
                       <LabelList dataKey="Total Cost" position="right" offset={8} fontSize={10} formatter={(value: number) => `$${value.toLocaleString()}`} />
                     </Bar>
-                    <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+                    {/* Disabling legend for this chart as colors are distinct per bar already */}
+                    {/* <ChartLegend content={<ChartLegendContent nameKey="name" />} /> */} 
                   </DynamicBarChart>
                 </ChartContainer>
              ) : (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                     <BarChart3 className="w-16 h-16 mb-4" />
-                    <p className="text-lg">No approved spending data for this year yet.</p>
+                    <p className="text-lg">No approved spending data for this period.</p>
                 </div>
              )}
           </CardContent>
@@ -275,4 +387,3 @@ export default function AnalyticsPage() {
     </div>
   );
 }
-
