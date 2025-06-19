@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { PlusCircle, Info, Trash2, Edit, RotateCcw } from 'lucide-react';
+import { PlusCircle, Info, Trash2, Edit } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +19,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
+  // AlertDialogTrigger, // No longer directly used for table buttons
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import React, { useState } from 'react';
@@ -45,7 +45,7 @@ export default function DashboardPage() {
     if (request.status === 'approved' && request.currentApprovalStep === 'cm') return 'Pending CM Processing';
     if (request.status === 'approved') return 'Approved & Processed';
     if (request.status === 'cancelled') {
-      const canceller = request.cancelledByUserId === currentUser?.id ? 'You' : 'Admin';
+      const canceller = request.cancelledByUserId === currentUser?.id ? 'You' : (users.find(u => u.id === request.cancelledByUserId)?.name || 'Admin');
       return `Cancelled by ${canceller}`;
     }
     if (request.status === 'rejected') {
@@ -82,7 +82,9 @@ export default function DashboardPage() {
   const handleActionConfirm = async () => {
     if (!requestToAction || !currentUser || !actionType) return;
     
-    const success = await cancelTrainingRequest(requestToAction.id, "Request actioned by employee.");
+    // For both 'cancel' and 'closeOut', we use the cancelTrainingRequest function
+    // The distinction is primarily in UI text and user intent.
+    const success = await cancelTrainingRequest(requestToAction.id, currentUser.id, currentUser.name, "Request actioned by employee.");
     
     if (success) {
       const toastTitle = actionType === 'cancel' ? "Request Cancelled" : "Request Closed Out";
@@ -161,12 +163,10 @@ export default function DashboardPage() {
                       <TableCell>{format(request.submittedDate, 'MMM d, yyyy')}</TableCell>
                       <TableCell className="text-right">
                         {request.status === 'pending' && request.employeeId === currentUser?.id && (
-                           <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm" onClick={() => openActionDialog(request, 'cancel')}>
-                              <Trash2 className="mr-1 h-3.5 w-3.5" />
-                              Cancel
-                            </Button>
-                          </AlertDialogTrigger>
+                           <Button variant="outline" size="sm" onClick={() => openActionDialog(request, 'cancel')}>
+                             <Trash2 className="mr-1 h-3.5 w-3.5" />
+                             Cancel
+                           </Button>
                         )}
                         {request.status === 'rejected' && request.employeeId === currentUser?.id && (
                           <div className="flex gap-2 justify-end">
@@ -174,12 +174,10 @@ export default function DashboardPage() {
                               <Edit className="mr-1 h-3.5 w-3.5" />
                               Revise
                             </Button>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="destructive" size="sm" onClick={() => openActionDialog(request, 'closeOut')}>
-                                <Trash2 className="mr-1 h-3.5 w-3.5" />
-                                Close Out
-                              </Button>
-                            </AlertDialogTrigger>
+                            <Button variant="destructive" size="sm" onClick={() => openActionDialog(request, 'closeOut')}>
+                              <Trash2 className="mr-1 h-3.5 w-3.5" />
+                              Close Out
+                            </Button>
                           </div>
                         )}
                       </TableCell>
@@ -192,8 +190,15 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {requestToAction && actionType && (
-        <AlertDialog open={!!requestToAction} onOpenChange={(open) => !open && (setRequestToAction(null), setActionType(null))}>
+      {/* AlertDialog is a controlled component here, its `open` state is managed by `!!requestToAction` */}
+      <AlertDialog open={!!requestToAction} onOpenChange={(open) => {
+        if (!open) { // This handles closing the dialog via Escape key or overlay click
+          setRequestToAction(null);
+          setActionType(null);
+        }
+      }}>
+        {/* Content is only rendered if there's a request to action, to avoid trying to read properties of null */}
+        {requestToAction && ( 
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
@@ -204,7 +209,7 @@ export default function DashboardPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => (setRequestToAction(null), setActionType(null))}>Back</AlertDialogCancel>
+              <AlertDialogCancel onClick={() => { setRequestToAction(null); setActionType(null); }}>Back</AlertDialogCancel>
               <AlertDialogAction 
                 onClick={handleActionConfirm} 
                 className={actionType === 'cancel' ? "bg-destructive hover:bg-destructive/90" : undefined}
@@ -213,9 +218,8 @@ export default function DashboardPage() {
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
-        </AlertDialog>
-      )}
+        )}
+      </AlertDialog>
     </div>
   );
 }
-
