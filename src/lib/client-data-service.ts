@@ -252,10 +252,21 @@ export async function updateUserProfileNameAction(userId: string, newName: strin
 
 export async function updateUserAvatarAction(userId: string, avatarUrl: string): Promise<boolean> {
   const db = await getDb();
+  console.log(`[CDA] Attempting to update avatar for user ${userId} to ${avatarUrl}`);
   try {
-    db.run('UPDATE employees SET avatarUrl = ? WHERE id = ?', [avatarUrl, userId]);
-    await saveDatabaseChanges();
-    return true;
+    const stmt = db.prepare('UPDATE employees SET avatarUrl = ? WHERE id = ?');
+    stmt.run([avatarUrl, userId]);
+    const changes = db.getRowsModified();
+    stmt.free();
+    console.log(`[CDA] Rows modified by avatar update SQL: ${changes}`);
+    
+    if (changes > 0) {
+      await saveDatabaseChanges();
+      console.log(`[CDA] Avatar for user ${userId} updated and DB save attempt initiated.`);
+      return true;
+    }
+    console.warn(`[CDA] No rows modified by avatar update for user ${userId}. URL not saved to DB.`);
+    return false;
   } catch (error) {
     console.error("Failed to update user avatar (sql.js):", error);
     return false;

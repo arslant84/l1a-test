@@ -17,16 +17,25 @@ export async function POST(request: Request) {
 
     // Convert the file to a Buffer
     const bytes = await file.arrayBuffer();
+    console.log(`[SAVE DATABASE API] Received database file: ${file.name}, size: ${bytes.byteLength} bytes`);
+    
+    if (bytes.byteLength === 0) {
+      console.warn('[SAVE DATABASE API] Received empty database file. Aborting save.');
+      return NextResponse.json(
+        { error: 'Received empty database file' },
+        { status: 400 }
+      );
+    }
+    
     const buffer = Buffer.from(bytes);
 
     // Save the file to the public directory
-    // process.cwd() gives the root of your Next.js project
     const publicDir = join(process.cwd(), 'public');
     const filePath = join(publicDir, 'vendors.db');
     
     await writeFile(filePath, buffer);
 
-    console.log(`[SAVE DATABASE API] Successfully wrote to: ${filePath}. This will likely trigger a dev server recompilation/restart.`);
+    console.log(`[SAVE DATABASE API] Successfully wrote ${bytes.byteLength} bytes to: ${filePath}. This will likely trigger a dev server recompilation/restart.`);
     return NextResponse.json({ success: true, message: 'Database saved successfully.' });
   } catch (error) {
     console.error('Error saving database:', error);
@@ -36,3 +45,4 @@ export async function POST(request: Request) {
     );
   }
 }
+
