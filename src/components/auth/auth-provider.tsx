@@ -9,7 +9,8 @@ import {
   fetchAllTrainingRequestsAction, 
   addTrainingRequestAction, 
   updateRequestStatusAction,
-  cancelTrainingRequestAction // Added cancel action
+  cancelTrainingRequestAction,
+  markRequestAsProcessedByCMAction // Added CM action
 } from '@/lib/client-data-service';
 import { getDb } from '@/lib/sqljs-db';
 
@@ -22,7 +23,8 @@ interface AuthContextType {
   trainingRequests: TrainingRequest[];
   addTrainingRequest: (request: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain' | 'cancelledByUserId' | 'cancelledDate' | 'cancellationReason'>) => Promise<boolean>;
   updateRequestStatus: (requestId: string, decision: 'approved' | 'rejected', notes?: string) => Promise<boolean>;
-  cancelTrainingRequest: (requestId: string, cancellationReason?: string) => Promise<boolean>; // Added cancelTrainingRequest
+  cancelTrainingRequest: (requestId: string, cancellationReason?: string) => Promise<boolean>;
+  markRequestAsProcessedByCM: (requestId: string, notes?: string) => Promise<boolean>; // Added CM processing
   users: Employee[];
 }
 
@@ -201,10 +203,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return false;
     }
   }, [currentUser, dbReady, loadInitialData]);
+
+  const markRequestAsProcessedByCM = useCallback(async (requestId: string, notes?: string): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'cm' || !dbReady) return false;
+    try {
+      const success = await markRequestAsProcessedByCMAction(requestId, notes, currentUser);
+      if (success) {
+        await loadInitialData(currentUser);
+      }
+      return success;
+    } catch (error) {
+      console.error("Failed to mark request as processed by CM:", error);
+      return false;
+    }
+  }, [currentUser, dbReady, loadInitialData]);
   
 
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading: isLoading || !dbReady, login, logout, reloadCurrentUser, trainingRequests, addTrainingRequest, updateRequestStatus, cancelTrainingRequest, users }}>
+    <AuthContext.Provider value={{ 
+      currentUser, 
+      isLoading: isLoading || !dbReady, 
+      login, 
+      logout, 
+      reloadCurrentUser, 
+      trainingRequests, 
+      addTrainingRequest, 
+      updateRequestStatus, 
+      cancelTrainingRequest, 
+      markRequestAsProcessedByCM,
+      users 
+    }}>
       {children}
     </AuthContext.Provider>
   );

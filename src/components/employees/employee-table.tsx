@@ -16,7 +16,7 @@ const roleDisplayNames: Record<Employee['role'], string> = {
   supervisor: 'Supervisor',
   thr: 'THR',
   ceo: 'CEO',
-  cm: 'CM'
+  cm: 'Capability Management'
 };
 
 function EmployeeTableComponent({ employees }: EmployeeTableProps) {
@@ -55,7 +55,7 @@ function EmployeeTableComponent({ employees }: EmployeeTableProps) {
               <TableCell>{employee.email}</TableCell>
               <TableCell>{employee.department}</TableCell>
               <TableCell className="text-center">
-                <Badge variant={employee.role === 'supervisor' ? 'default' : 'secondary'}>
+                <Badge variant={employee.role === 'supervisor' || employee.role === 'cm' ? 'default' : 'secondary'}>
                   {roleDisplayNames[employee.role] || employee.role}
                 </Badge>
               </TableCell>

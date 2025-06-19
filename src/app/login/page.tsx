@@ -60,7 +60,7 @@ export default function LoginPage() {
     supervisor: 'Supervisor',
     thr: 'THR',
     ceo: 'CEO',
-    cm: 'CM'
+    cm: 'Capability Management (CM)'
   };
 
 

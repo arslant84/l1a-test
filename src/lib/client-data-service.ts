@@ -39,7 +39,7 @@ export async function addTrainingRequestAction(
 ): Promise<boolean> {
   if (!currentUser) return false;
   const db = await getDb();
-  const newRequestId = `req${Date.now()}`;
+  const newRequestId = 'req' + Date.now();
   const submittedDate = new Date().toISOString();
 
   try {
@@ -101,7 +101,7 @@ export async function updateRequestStatusAction(
   }
 
   const newAction: ApprovalAction = {
-    stepRole: parsedCurrentRequest.currentApprovalStep as ApprovalStepRole,
+    stepRole: parsedCurrentRequest.currentApprovalStep as ApprovalStepRole, 
     decision,
     userId: currentUser.id,
     userName: currentUser.name,
@@ -117,6 +117,7 @@ export async function updateRequestStatusAction(
     finalStatus = 'rejected';
     nextApprovalStep = 'completed';
   } else { 
+    // Approved path
     switch (parsedCurrentRequest.currentApprovalStep) {
       case 'supervisor':
         nextApprovalStep = 'thr';
@@ -127,12 +128,12 @@ export async function updateRequestStatusAction(
           nextApprovalStep = 'ceo';
         } else {
           finalStatus = 'approved';
-          nextApprovalStep = 'completed';
+          nextApprovalStep = 'cm'; 
         }
         break;
       case 'ceo':
         finalStatus = 'approved';
-        nextApprovalStep = 'completed';
+        nextApprovalStep = 'cm'; 
         break;
     }
   }
@@ -155,6 +156,59 @@ export async function updateRequestStatusAction(
     return false;
   }
 }
+
+export async function markRequestAsProcessedByCMAction(
+  requestId: string,
+  notes: string | undefined,
+  currentUser: Employee
+): Promise<boolean> {
+  if (!currentUser || currentUser.role !== 'cm') return false;
+  const db = await getDb();
+
+  const stmt = db.prepare('SELECT * FROM training_requests WHERE id = ?');
+  stmt.bind([requestId]);
+  let currentRequestFromDb: any | null = null;
+  if (stmt.step()) {
+    currentRequestFromDb = stmt.getAsObject();
+  }
+  stmt.free();
+
+  if (!currentRequestFromDb) return false;
+  const parsedCurrentRequest = parseTrainingRequest(currentRequestFromDb);
+
+  if (parsedCurrentRequest.status !== 'approved' || parsedCurrentRequest.currentApprovalStep !== 'cm') {
+    console.error("CM Processing Error: Request not in correct state for CM action.", parsedCurrentRequest);
+    return false;
+  }
+
+  const newAction: ApprovalAction = {
+    stepRole: 'cm',
+    decision: 'processed',
+    userId: currentUser.id,
+    userName: currentUser.name,
+    notes,
+    date: new Date(),
+  };
+  const updatedApprovalChain = [...parsedCurrentRequest.approvalChain, newAction];
+
+  try {
+    db.run(
+      'UPDATE training_requests SET currentApprovalStep = ?, approvalChain = ?, lastUpdated = ? WHERE id = ?',
+      [
+        'completed', 
+        JSON.stringify(updatedApprovalChain.map(ac => ({...ac, date: ac.date.toISOString()}))),
+        new Date().toISOString(),
+        requestId
+      ]
+    );
+    await saveDatabaseChanges();
+    return true;
+  } catch (error) {
+    console.error("Failed to mark request as processed by CM (sql.js):", error);
+    return false;
+  }
+}
+
 
 export async function cancelTrainingRequestAction(
   requestId: string,
@@ -229,11 +283,12 @@ export async function updateUserNotificationPreferenceAction(
   const columnToUpdate = preferenceType === 'email' ? 'prefersEmailNotifications' : 'prefersInAppNotifications';
   const dbValue = value ? 1 : 0; 
   try {
-    db.run(`UPDATE employees SET ${columnToUpdate} = ? WHERE id = ?`, [dbValue, userId]);
+    db.run('UPDATE employees SET ' + columnToUpdate + ' = ? WHERE id = ?', [dbValue, userId]);
     await saveDatabaseChanges();
     return true;
   } catch (error) {
-    console.error(`Failed to update ${preferenceType} notification preference for user ${userId} (sql.js):`, error);
+    console.error('Failed to update ' + preferenceType + ' notification preference for user ' + userId + ' (sql.js):', error);
     return false;
   }
 }
+

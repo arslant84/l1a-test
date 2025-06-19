@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { ReviewCard } from '@/components/requests/review-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { TrainingRequest, Employee } from '@/lib/types';
-import { AlertTriangle, CheckSquare, ListFilter, Search, UserCheck } from 'lucide-react';
+import { AlertTriangle, CheckSquare, ListFilter, Search, UserCheck, Briefcase } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useState, useMemo } from 'react';
 import {
@@ -21,29 +21,28 @@ export default function ReviewRequestsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'costHigh' | 'costLow'>('newest');
 
-  const allowedReviewRoles: Employee['role'][] = ['supervisor', 'thr', 'ceo'];
+  const allowedReviewRoles: Employee['role'][] = ['supervisor', 'thr', 'ceo', 'cm'];
 
   const requestsForReview = useMemo(() => {
     if (!currentUser || !allowedReviewRoles.includes(currentUser.role)) return [];
 
     let filtered = trainingRequests.filter(req => {
+      if (currentUser.role === 'cm') {
+        return req.status === 'approved' && req.currentApprovalStep === 'cm';
+      }
+      // Logic for supervisor, thr, ceo
       if (req.status !== 'pending') return false;
-
-      // Check if the request's current approval step matches the current user's role
       if (req.currentApprovalStep === currentUser.role) {
-        // If the current user is a supervisor, there's an additional check:
-        // The request's employee must be managed by this supervisor.
         if (currentUser.role === 'supervisor') {
           const employee = users.find(u => u.id === req.employeeId);
-          // Ensure employee and relevant IDs exist before comparing
           if (employee && typeof employee.managerId === 'string' && typeof currentUser.id === 'string') {
             return employee.managerId === currentUser.id;
           }
-          return false; // Employee not found or IDs are problematic
+          return false;
         }
-        return true; // For THR and CEO, if the step matches their role, it's for them.
+        return true;
       }
-      return false; // Not pending for the current user's role/step.
+      return false;
     });
     
     if (searchTerm) {
@@ -74,12 +73,15 @@ export default function ReviewRequestsPage() {
     if (!currentUser || !allowedReviewRoles.includes(currentUser.role)) return [];
     
     let filtered = trainingRequests.filter(req => {
-      // Condition 1: Request is completed (not pending), and currentUser was involved in the approval chain.
+      // If CM, "other requests" means anything not pending CM processing
+      if (currentUser.role === 'cm') {
+        return !(req.status === 'approved' && req.currentApprovalStep === 'cm');
+      }
+
+      // For other approvers
       if (req.status !== 'pending' && req.approvalChain.some(action => action.userId === currentUser.id)) {
         return true;
       }
-
-      // Condition 2: Request is pending, but NOT specifically for the currentUser to action.
       if (req.status === 'pending') {
         let isAwaitingThisUserDirectly = false;
         if (req.currentApprovalStep === currentUser.role) {
@@ -89,12 +91,9 @@ export default function ReviewRequestsPage() {
               isAwaitingThisUserDirectly = employee.managerId === currentUser.id;
             }
           } else {
-            // For THR/CEO, if the step matches their role, it's directly for them.
             isAwaitingThisUserDirectly = true;
           }
         }
-        
-        // If it's NOT awaiting this user directly (e.g. wrong supervisor, or different role step), include in "other".
         if (!isAwaitingThisUserDirectly) {
           return true;
         }
@@ -110,7 +109,6 @@ export default function ReviewRequestsPage() {
     }
      switch (sortOrder) {
       case 'newest':
-        // For processed requests, sorting by lastUpdated might be more relevant
         filtered.sort((a,b) => b.lastUpdated.getTime() - a.lastUpdated.getTime());
         break;
       case 'oldest':
@@ -136,12 +134,23 @@ export default function ReviewRequestsPage() {
       </div>
     );
   }
+  
+  const awaitingActionTabTitle = currentUser.role === 'cm' 
+    ? "Awaiting My Processing" 
+    : "Awaiting My Action";
+  
+  const awaitingActionIcon = currentUser.role === 'cm' ? Briefcase : UserCheck;
+
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight font-headline">Review Training Requests</h1>
-        <p className="text-muted-foreground">Approve or reject training requests submitted by employees.</p>
+        <h1 className="text-3xl font-bold tracking-tight font-headline">
+            {currentUser.role === 'cm' ? "Process Approved Trainings" : "Review Training Requests"}
+        </h1>
+        <p className="text-muted-foreground">
+            {currentUser.role === 'cm' ? "Mark fully approved training requests as processed/registered." : "Approve or reject training requests submitted by employees."}
+        </p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 items-center">
@@ -173,7 +182,7 @@ export default function ReviewRequestsPage() {
       <Tabs defaultValue="pending" className="w-full">
         <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:inline-flex mb-4">
           <TabsTrigger value="pending" className="flex items-center gap-2">
-            <UserCheck className="h-4 w-4" /> Awaiting My Action ({requestsForReview.length})
+            <awaitingActionIcon className="h-4 w-4" /> {awaitingActionTabTitle} ({requestsForReview.length})
           </TabsTrigger>
           <TabsTrigger value="processed" className="flex items-center gap-2">
             <CheckSquare className="h-4 w-4" /> All Other Requests ({processedRequests.length})

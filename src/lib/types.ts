@@ -29,12 +29,12 @@ export type ProgramType =
   | 'specialized' 
   | 'others';
 
-export type ApprovalStepRole = 'supervisor' | 'thr' | 'ceo';
+export type ApprovalStepRole = 'supervisor' | 'thr' | 'ceo' | 'cm';
 export type CurrentApprovalStep = ApprovalStepRole | 'completed';
 
 export interface ApprovalAction {
   stepRole: ApprovalStepRole;
-  decision: 'approved' | 'rejected';
+  decision: 'approved' | 'rejected' | 'processed'; // Added 'processed' for CM
   userId: string;
   userName:string;
   notes?: string;
