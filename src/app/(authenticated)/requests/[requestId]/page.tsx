@@ -7,10 +7,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, User, Briefcase, Mail, Building, Award, CalendarCheck2, DollarSign, CalendarDays, FileText, BookOpen, MapPin, MapPinned, LayoutList, MessageSquare, CheckCircle, XCircle, Info, CheckCheck, ShieldCheck, Landmark, Users as UsersIcon, AlertTriangle, Loader2 } from 'lucide-react';
+import { ArrowLeft, User, Briefcase, Mail, Building, Award, CalendarCheck2, DollarSign, CalendarDays, FileText, BookOpen, MapPin, MapPinned, LayoutList, MessageSquare, CheckCircle, XCircle, Info, CheckCheck, ShieldCheck, Landmark, Users as UsersIcon, AlertTriangle, Loader2, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import type { TrainingRequest, Employee, ApprovalAction, ApprovalStepRole, TrainingRequestLocationMode, ProgramType } from '@/lib/types';
 import React from 'react';
+import { generateL1APdf } from '@/lib/l1a-pdf-generator';
 
 const approvalStepRoleDisplay: Record<ApprovalStepRole, string> = {
   supervisor: 'Supervisor',
@@ -57,9 +58,9 @@ const getOverallStatusText = (request: TrainingRequest, usersFromAuth: Employee[
 };
 
 const getStatusVariant = (status: TrainingRequest['status'], currentStep?: TrainingRequest['currentApprovalStep']): "success" | "secondary" | "destructive" | "outline" => {
-  if (status === 'approved') {
-    return 'success';
-  }
+  if (status === 'approved' && currentStep === 'completed') return 'success';
+  if (status === 'approved' && currentStep === 'cm') return 'secondary'; // Still needs CM processing
+  if (status === 'approved') return 'success'; // General approved
   if (status === 'rejected') return 'destructive';
   if (status === 'cancelled') return 'outline';
   return 'secondary'; 
@@ -109,7 +110,7 @@ const InfoDisplayRow: React.FC<InfoRowProps> = ({ icon: Icon, label, value, isDa
   return (
     <div className="flex items-start space-x-3 py-2 border-b border-dashed last:border-b-0">
       <Icon className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
-      <div className="flex-1 min-w-0"> {/* Added min-w-0 for better flex handling of long content */}
+      <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
         {children ? <div className="text-sm text-foreground mt-0.5 break-words">{children}</div> : <p className="text-sm text-foreground break-words">{displayValue}</p>}
       </div>
@@ -143,6 +144,12 @@ export default function TrainingRequestDetailPage() {
     }
   }, [requestId, trainingRequests, users, authLoading]);
 
+  const handleDownloadPdf = () => {
+    if (request && employee) {
+      generateL1APdf(request, employee, users);
+    }
+  };
+
   if (isLoading || authLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)]">
@@ -164,19 +171,28 @@ export default function TrainingRequestDetailPage() {
       </div>
     );
   }
+  
+  const isApprovedOrProcessed = request.status === 'approved' && request.currentApprovalStep === 'completed';
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight font-headline">Training Request Details</h1>
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
-        </Button>
+        <div className="flex gap-2">
+          {isApprovedOrProcessed && (
+            <Button variant="outline" onClick={handleDownloadPdf}>
+              <Download className="mr-2 h-4 w-4" /> Download L1A Form
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => router.back()}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
+          </Button>
+        </div>
       </div>
 
       <Card className="shadow-lg">
         <CardHeader>
-          <div className="flex flex-col md:flex-row justify-between md:items-center gap-2">
+          <div className="flex flex-col md:flex-row justify-between md:items-start gap-2">
             <div className="flex-1 min-w-0">
               <CardTitle className="font-headline text-2xl mb-1 break-words">{request.trainingTitle}</CardTitle>
               <CardDescription>Submitted on: {format(request.submittedDate, 'PPP p')}</CardDescription>
