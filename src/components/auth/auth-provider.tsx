@@ -2,22 +2,22 @@
 "use client";
 import type { ReactNode } from 'react';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import type { Employee, TrainingRequest, ProgramType, TrainingRequestLocationMode, ApprovalStepRole } from '@/lib/types';
+import type { Employee, TrainingRequest } from '@/lib/types';
 import { 
   loginUserAction, 
   fetchAllUsersAction, 
   fetchAllTrainingRequestsAction, 
   addTrainingRequestAction, 
   updateRequestStatusAction 
-} from '@/actions/dataActions';
-
+} from '@/lib/client-data-service'; // UPDATED IMPORT
+import { getDb } from '@/lib/sqljs-db'; // Import getDb to ensure DB is initialized
 
 interface AuthContextType {
   currentUser: Employee | null;
   isLoading: boolean;
   login: (email: string, role: Employee['role']) => Promise<boolean>;
   logout: () => void;
-  reloadCurrentUser: () => Promise<void>; // Added to refresh user data
+  reloadCurrentUser: () => Promise<void>;
   trainingRequests: TrainingRequest[];
   addTrainingRequest: (request: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain'>) => Promise<boolean>;
   updateRequestStatus: (requestId: string, decision: 'approved' | 'rejected', notes?: string) => Promise<boolean>;
@@ -26,7 +26,6 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Key for storing minimal user info (e.g., ID) to re-authenticate on refresh
 const SESSION_USER_ID_KEY = 'l1a_sessionUserId'; 
 const SESSION_USER_ROLE_KEY = 'l1a_sessionUserRole';
 
@@ -35,8 +34,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [trainingRequests, setTrainingRequests] = useState<TrainingRequest[]>([]);
   const [users, setUsers] = useState<Employee[]>([]);
+  const [dbReady, setDbReady] = useState(false);
+
+  // Initialize DB first
+  useEffect(() => {
+    const initDb = async () => {
+      try {
+        await getDb(); // This will initialize sql.js and load vendors.db
+        setDbReady(true);
+      } catch (error) {
+        console.error("AuthProvider: Failed to initialize database", error);
+        setIsLoading(false); // Stop loading if DB fails critically
+      }
+    };
+    initDb();
+  }, []);
 
   const loadInitialData = useCallback(async (loggedInUser: Employee | null) => {
+    if (!dbReady) return; // Don't load data if DB is not ready
     setIsLoading(true);
     try {
       const fetchedUsers = await fetchAllUsersAction();
@@ -46,40 +61,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setTrainingRequests(fetchedRequests);
 
       if (loggedInUser) {
-        const freshUser = fetchedUsers.find(u => u.id === loggedInUser.id);
+        // Re-fetch current user from the now client-side DB to ensure data consistency
+        const freshUser = await loginUserAction(loggedInUser.email, loggedInUser.role);
         setCurrentUser(freshUser || null);
+      } else {
+        setCurrentUser(null);
       }
 
     } catch (error) {
-      console.error("Failed to load initial data:", error);
+      console.error("AuthProvider: Failed to load initial data:", error);
     } finally {
       setIsLoading(false);
     }
-  }, []);
-
+  }, [dbReady]);
+  
   const reloadCurrentUser = useCallback(async () => {
-    if (!currentUser) return;
+    if (!currentUser || !dbReady) return;
     setIsLoading(true);
     try {
-      // Re-fetch the current user's data from the backend
       const freshUser = await loginUserAction(currentUser.email, currentUser.role);
-      if (freshUser) {
-        setCurrentUser(freshUser);
-        // Optionally, re-fetch all users and requests if other parts of their data might have changed system-wide
-        // For settings changes that only affect the current user, just updating currentUser might be enough.
-        // However, to ensure consistency, especially if the user's name changed (which appears in requests),
-        // reloading all data is safer.
-        await loadInitialData(freshUser);
-      }
+      setCurrentUser(freshUser); // Update current user
+      
+      // Since data might have changed (e.g. user name in requests), reload all relevant data
+      const fetchedUsers = await fetchAllUsersAction();
+      setUsers(fetchedUsers);
+      const fetchedRequests = await fetchAllTrainingRequestsAction();
+      setTrainingRequests(fetchedRequests);
+
     } catch (error) {
-      console.error("Failed to reload current user:", error);
+      console.error("AuthProvider: Failed to reload current user:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser, loadInitialData]);
+  }, [currentUser, dbReady]);
   
-  // Effect to load data on initial mount and try to re-authenticate
   useEffect(() => {
+    if (!dbReady) return; // Wait for DB to be ready
+
     const attemptReAuthenticationAndLoad = async () => {
       setIsLoading(true);
       let sessionUser: Employee | null = null;
@@ -88,35 +106,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const storedUserRole = localStorage.getItem(SESSION_USER_ROLE_KEY) as Employee['role'] | null;
         
         if (storedUserId && storedUserRole) {
-          const allDbUsers = await fetchAllUsersAction(); 
-          const potentialUser = allDbUsers.find(u => u.id === storedUserId && u.role === storedUserRole);
-          if (potentialUser) {
-             sessionUser = await loginUserAction(potentialUser.email, potentialUser.role);
-             if (sessionUser) {
-                setCurrentUser(sessionUser);
-             }
-          }
+           // We need to query all users to find the one matching stored ID and role,
+           // because loginUserAction now needs email.
+           const allDbUsers = await fetchAllUsersAction();
+           const potentialUser = allDbUsers.find(u => u.id === storedUserId && u.role === storedUserRole);
+           if (potentialUser) {
+              sessionUser = await loginUserAction(potentialUser.email, potentialUser.role);
+              if (sessionUser) {
+                 setCurrentUser(sessionUser);
+              }
+           }
         }
       } catch (e) {
-        console.error("Error during re-authentication:", e);
+        console.error("AuthProvider: Error during re-authentication:", e);
       } finally {
+        // Load all data regardless of re-auth success, but pass the potentially re-authed user
         await loadInitialData(sessionUser); 
-        setIsLoading(false);
+        // setIsLoading(false); // loadInitialData handles this
       }
     };
     attemptReAuthenticationAndLoad();
-  }, [loadInitialData]);
+  }, [dbReady, loadInitialData]);
 
 
   const login = useCallback(async (email: string, role: Employee['role']): Promise<boolean> => {
+    if (!dbReady) {
+      console.error("Login attempt before DB is ready.");
+      return false;
+    }
     setIsLoading(true);
     try {
       const user = await loginUserAction(email, role);
       if (user) {
         setCurrentUser(user);
         localStorage.setItem(SESSION_USER_ID_KEY, user.id); 
-        localStorage.setItem(SESSION_USER_ROLE_KEY, user.role); 
-        await loadInitialData(user); 
+        localStorage.setItem(SESSION_USER_ROLE_KEY, user.role);
+        // After successful login, all data is reloaded by loadInitialData called via useEffect or directly.
+        // Forcing a fresh load ensures consistency.
+        await loadInitialData(user);
         return true;
       }
       setCurrentUser(null);
@@ -129,53 +156,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [loadInitialData]);
+  }, [dbReady, loadInitialData]);
 
   const logout = useCallback(() => {
     setCurrentUser(null);
     localStorage.removeItem(SESSION_USER_ID_KEY);
     localStorage.removeItem(SESSION_USER_ROLE_KEY);
+    // Clear data, it will be reloaded on next login or page refresh if session persists
     setUsers([]);
     setTrainingRequests([]);
   }, []);
 
   const addTrainingRequest = useCallback(async (requestData: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain'>): Promise<boolean> => {
-    if (!currentUser) return false;
-    setIsLoading(true);
+    if (!currentUser || !dbReady) return false;
+    // No need for setIsLoading(true) here as individual actions should be quick client-side
     try {
       const success = await addTrainingRequestAction(requestData, currentUser);
       if (success) {
+        // Reload data to reflect the new request
         await loadInitialData(currentUser); 
       }
       return success;
     } catch (error) {
       console.error("Failed to add training request:", error);
       return false;
-    } finally {
-      setIsLoading(false);
     }
-  }, [currentUser, loadInitialData]);
+  }, [currentUser, dbReady, loadInitialData]);
 
   const updateRequestStatus = useCallback(async (requestId: string, decision: 'approved' | 'rejected', notes?: string): Promise<boolean> => {
-    if (!currentUser) return false;
-    setIsLoading(true);
+    if (!currentUser || !dbReady) return false;
     try {
       const success = await updateRequestStatusAction(requestId, decision, notes, currentUser);
       if (success) {
-        await loadInitialData(currentUser); 
+        // Reload data to reflect the status change
+        await loadInitialData(currentUser);
       }
       return success;
-    } catch (error) {
+    } catch (error)
+    {
       console.error("Failed to update request status:", error);
       return false;
-    } finally {
-      setIsLoading(false);
     }
-  }, [currentUser, loadInitialData]);
+  }, [currentUser, dbReady, loadInitialData]);
   
 
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading, login, logout, reloadCurrentUser, trainingRequests, addTrainingRequest, updateRequestStatus, users }}>
+    <AuthContext.Provider value={{ currentUser, isLoading: isLoading || !dbReady, login, logout, reloadCurrentUser, trainingRequests, addTrainingRequest, updateRequestStatus, users }}>
       {children}
     </AuthContext.Provider>
   );

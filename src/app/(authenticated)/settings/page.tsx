@@ -19,7 +19,7 @@ import {
   updateUserAvatarAction, 
   updateUserPasswordAction, 
   updateUserNotificationPreferenceAction 
-} from '@/actions/dataActions';
+} from '@/lib/client-data-service'; // UPDATED IMPORT
 import { UserCircle, Mail, Briefcase, KeyRound, Bell, Loader2, UploadCloud } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 
@@ -29,7 +29,7 @@ const profileFormSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
 const passwordFormSchema = z.object({
-  currentPassword: z.string().min(1, "Current password is required."), // Simplified for demo
+  currentPassword: z.string().min(1, "Current password is required."), 
   newPassword: z.string().min(8, "New password must be at least 8 characters."),
   confirmPassword: z.string(),
 }).refine(data => data.newPassword === data.confirmPassword, {
@@ -50,7 +50,7 @@ export default function SettingsPage() {
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
-      name: currentUser?.name || '',
+      name: '', // Will be set by useEffect
     },
   });
 
@@ -78,6 +78,7 @@ export default function SettingsPage() {
   }
   
   const getInitials = (name: string) => {
+    if (!name) return '';
     const names = name.split(' ');
     let initials = names[0].substring(0, 1).toUpperCase();
     if (names.length > 1) {
@@ -108,11 +109,8 @@ export default function SettingsPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // For prototyping: Show toast, then proceed with placeholder cycling.
-    // In a real app, you'd upload `file` here.
     toast({ title: "Picture Selected (Simulation)", description: `File "${file.name}" was chosen. Avatar will update with a new placeholder.` });
 
-    // Simulate changing picture by cycling through a few placeholders
     const currentPicNumber = currentUser.avatarUrl?.match(/(\d+)x\1/)?.[1];
     const nextSize = currentPicNumber === '100' ? '150' : currentPicNumber === '150' ? '200' : '100';
     const newAvatarUrl = `https://placehold.co/${nextSize}x${nextSize}.png`;
@@ -124,7 +122,6 @@ export default function SettingsPage() {
     } else {
       toast({ variant: "destructive", title: "Update Failed", description: "Could not update picture." });
     }
-    // Reset file input value so onChange fires again if the same file is selected
     if(fileInputRef.current) {
         fileInputRef.current.value = "";
     }
@@ -134,9 +131,7 @@ export default function SettingsPage() {
   const handlePasswordChangeSubmit: SubmitHandler<PasswordFormValues> = async (data) => {
     if (!currentUser) return;
     setIsChangingPassword(true);
-    // In a real app, data.currentPassword and data.newPassword would be sent to the backend for verification and update.
-    // For this prototype, we'll just simulate success and update the passwordLastChanged timestamp.
-    const success = await updateUserPasswordAction(currentUser.id); // This action now just updates the timestamp
+    const success = await updateUserPasswordAction(currentUser.id);
     if (success) {
       toast({ title: "Password Updated", description: "Your password has been successfully changed." });
       await reloadCurrentUser();
@@ -160,7 +155,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-8 p-6 md:p-8">
+    <div className="space-y-8 p-1 md:p-2">
       <div>
         <h1 className="text-3xl font-bold tracking-tight font-headline">Settings</h1>
         <p className="text-muted-foreground">Manage your account settings and preferences.</p>

@@ -19,24 +19,41 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Add the allowed development origin to suppress cross-origin warnings - Re-added as it's likely not the cause of 502s
   allowedDevOrigins: ['https://6000-firebase-studio-1749929670762.cluster-oayqgyglpfgseqclbygurw4xd4.cloudworkstations.dev'],
   webpack: (config, { isServer, webpack }) => {
-    if (!isServer) {
-      // These modules are server-side only. Prevent them from being bundled for the client.
-      config.plugins.push(
-        new webpack.IgnorePlugin({ resourceRegExp: /^sqlite3$/ }),
-        new webpack.IgnorePlugin({ resourceRegExp: /^bindings$/ })
-      );
+    // Required for sql.js to load its Wasm file
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false, // fs is not available in the browser
+      path: false, // path is not available in the browser
+      // sql.js might need other fallbacks, add them here if build errors occur
+      crypto: false,
+      stream: false,
+      http: false,
+      https: false,
+      zlib: false,
+      net: false,
+      tls: false,
+      os: false,
+      assert: false,
+      util: false,
+      constants: false,
+      vm: false,
+    };
 
-      // Provide fallbacks for Node.js core modules that might be erroneously pulled into client bundle
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        path: false,
-        // Add other core modules here if new errors appear e.g. crypto: false
-      };
-    }
+    // Rule to handle .wasm files
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: "asset/resource", // This tells Webpack to treat .wasm files as assets
+      generator: {
+        filename: 'static/wasm/[name][ext]' // Optional: control output path/name
+      }
+    });
+    
+    // experiments.asyncWebAssembly is deprecated, direct wasm rule is preferred
+    // config.experiments = { ...config.experiments, asyncWebAssembly: true };
+
+
     return config;
   },
 };
