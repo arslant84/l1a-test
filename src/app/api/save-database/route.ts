@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     
     await writeFile(filePath, buffer);
 
-    console.log(`Database saved to: ${filePath}`);
+    console.log(`[SAVE DATABASE API] Successfully wrote to: ${filePath}. This will likely trigger a dev server recompilation/restart.`);
     return NextResponse.json({ success: true, message: 'Database saved successfully.' });
   } catch (error) {
     console.error('Error saving database:', error);
