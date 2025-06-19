@@ -121,8 +121,6 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
   const fieldHeight = 7;
   const col1Width = contentWidth * 0.6;
   const col2Width = contentWidth * 0.4;
-  // const subCol2Width1 = col2Width * 0.4; // Not used from original, but keeping for reference if needed
-  // const subCol2Width2 = col2Width * 0.6; // Not used
 
   drawField('NAME', val(employee?.name), margin, yPos, col1Width, fieldHeight, {labelWidth: col1Width * 0.2});
   drawField('STAFF No.', val(employee?.staffNo), margin + col1Width, yPos, col2Width, fieldHeight, {labelWidth: col2Width * 0.4});
@@ -132,7 +130,6 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
   drawField('DEPT/DIV', val(employee?.department), margin + col1Width, yPos, col2Width, fieldHeight, {labelWidth: col2Width * 0.4});
   yPos += fieldHeight;
   
-  // These fields are on L1A but not in current Employee model:
   drawField('LOCATION', 'N/A (e.g. Office Ext)', margin, yPos, col1Width, fieldHeight, {labelWidth: col1Width * 0.2}); 
   drawField('H/P No.', 'N/A (e.g. +6012345678)', margin + col1Width, yPos, col2Width, fieldHeight, {labelWidth: col2Width * 0.4}); 
   yPos += fieldHeight;
@@ -140,7 +137,6 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
   doc.setFontSize(FONT_SIZE_SMALL);
   doc.text('BRIEF CURRENT JOB RESPONSIBILITY:', margin + BOX_PADDING, yPos + fieldHeight/2 + (FONT_SIZE_SMALL/3));
   doc.rect(margin, yPos, contentWidth, fieldHeight * 2);
-  // Add placeholder text or fetch from a job description if available for employee. For now, empty.
   yPos += fieldHeight * 2;
   
   doc.setFontSize(FONT_SIZE_SMALL);
@@ -188,6 +184,9 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
   yPos += fieldHeight;
 
   // --- Section C: Justification for Nomination ---
+  const superiorAction = request.approvalChain.find(a => a.stepRole === 'supervisor');
+  const supervisorJustification = superiorAction?.notes || request.justification; // Use supervisor's notes if available for C
+
   yPos = drawSectionTitle("C. JUSTIFICATION FOR NOMINATION", yPos, fieldHeight, "(To be completed by Immediate Superior)");
   
   doc.setFontSize(FONT_SIZE_SMALL);
@@ -196,18 +195,14 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
   doc.text('YES', margin + contentWidth - 30 + 7.5, yPos + fieldHeight/2 + (FONT_SIZE_SMALL/3), {align: 'center'});
   doc.rect(margin + contentWidth - 15, yPos, 15, fieldHeight);
   doc.text('NO', margin + contentWidth - 15 + 7.5, yPos + fieldHeight/2 + (FONT_SIZE_SMALL/3), {align: 'center'});
-  // TODO: Add logic to check a box based on data if available
   yPos += fieldHeight;
   
-  const superiorAction = request.approvalChain.find(a => a.stepRole === 'supervisor');
-  const supervisorJustification = superiorAction?.notes || request.justification; // Use supervisor's notes if available for C
-
   doc.setFontSize(FONT_SIZE_SMALL);
   doc.text('A. JOB RELEVANCY', margin + BOX_PADDING, yPos + fieldHeight/2 + (FONT_SIZE_SMALL/3));
   yPos += fieldHeight;
   doc.rect(margin, yPos, contentWidth, fieldHeight * 1.5); 
   doc.setFontSize(FONT_SIZE_NORMAL);
-  const jobRelevancyLines = doc.splitTextToSize("Relates to current role by: " + (superiorJustification || "N/A"), contentWidth - 2 * BOX_PADDING);
+  const jobRelevancyLines = doc.splitTextToSize("Relates to current role by: " + (supervisorJustification || "N/A"), contentWidth - 2 * BOX_PADDING);
   doc.text(jobRelevancyLines, margin + BOX_PADDING, yPos + LINE_HEIGHT * 0.5);
   yPos += fieldHeight * 1.5;
 
@@ -216,7 +211,7 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
   yPos += fieldHeight;
   doc.rect(margin, yPos, contentWidth, fieldHeight * 1.5); 
   doc.setFontSize(FONT_SIZE_NORMAL);
-  const careerDevLines = doc.splitTextToSize("Contributes to career dev by: " + (superiorJustification || "N/A"), contentWidth - 2 * BOX_PADDING);
+  const careerDevLines = doc.splitTextToSize("Contributes to career dev by: " + (supervisorJustification || "N/A"), contentWidth - 2 * BOX_PADDING);
   doc.text(careerDevLines, margin + BOX_PADDING, yPos + LINE_HEIGHT * 0.5);
   yPos += fieldHeight * 1.5;
   
@@ -235,7 +230,6 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
 
 
   // --- Section D: Endorsement by Department Head ---
-  // Assuming THR acts as Dept Head for endorsement purposes if no specific Dept Head step
   const thrAction = request.approvalChain.find(a => a.stepRole === 'thr');
   const deptHeadName = thrAction?.userName || 'N/A';
   const deptHeadPosition = thrAction ? (users.find(u => u.id === thrAction.userId)?.position || 'THR') : 'N/A';
@@ -281,7 +275,7 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
   
   // E. Verification (CM)
   const cmAction = request.approvalChain.find(a => a.stepRole === 'cm' && a.decision === 'processed');
-  const cmName = cmAction?.userName || "Shohrat Otuzov"; // Default from form if not processed
+  const cmName = cmAction?.userName || "Shohrat Otuzov"; 
   const cmPosition = users.find(u=>u.id === cmAction?.userId)?.position || "Manager, Capability Management";
   const cmDate = cmAction ? format(cmAction.date, 'dd MMM yyyy') : 'N/A';
   
@@ -298,7 +292,6 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
 
 
   // F. Endorsement (THR)
-  // Re-use thrAction from Section D if appropriate, or find the one marking approval
   const thrApprovalAction = request.approvalChain.find(a => a.stepRole === 'thr' && a.decision === 'approved');
   const thrEndorserName = thrApprovalAction?.userName || (thrAction?.decision === 'approved' ? thrAction.userName : 'HEAD THR, PC(T)SB');
   const thrEndorserPos = users.find(u=>u.id === thrApprovalAction?.userId)?.position || (thrAction?.decision === 'approved' ? users.find(u=>u.id === thrAction.userId)?.position || 'THR' : 'THR Manager');
@@ -310,20 +303,22 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
   doc.text(val(thrEndorserPos), margin + footerColWidth + BOX_PADDING, posLineYPos);
   doc.text(`Date: ${val(thrEndorserDate)}`, margin + footerColWidth + BOX_PADDING, posLineYPos + LINE_HEIGHT);
 
-  // G. Approval (CEO - only for overseas)
+  // G. Approval (CEO - only for overseas or high cost)
   const ceoAction = request.approvalChain.find(a => a.stepRole === 'ceo' && a.decision === 'approved');
-  const ceoName = ceoAction?.userName || (request.mode === 'overseas' ? 'CEO, PC(T)SB' : 'N/A (Not Overseas)');
-  const ceoPosition = users.find(u=>u.id === ceoAction?.userId)?.position || (request.mode === 'overseas' ? 'CEO' : '');
-  const ceoDate = ceoAction ? format(ceoAction.date, 'dd MMM yyyy') : (request.mode === 'overseas' ? 'N/A' : '');
+  const needsCeoApprovalForPdf = request.mode === 'overseas' || request.cost > 2000; // Simplified logic for PDF display
+  
+  const ceoName = ceoAction?.userName || (needsCeoApprovalForPdf ? 'CEO, PC(T)SB' : 'N/A');
+  const ceoPosition = users.find(u=>u.id === ceoAction?.userId)?.position || (needsCeoApprovalForPdf ? 'CEO' : '');
+  const ceoDate = ceoAction ? format(ceoAction.date, 'dd MMM yyyy') : (needsCeoApprovalForPdf ? 'N/A' : '');
 
-  doc.text('APPROVED BY: (ONLY OVERSEAS)', margin + 2*footerColWidth + BOX_PADDING, yPos + LINE_HEIGHT * 2);
-  if (request.mode === 'overseas' || ceoAction) {
+  doc.text('APPROVED BY:', margin + 2*footerColWidth + BOX_PADDING, yPos + LINE_HEIGHT * 2);
+  if (needsCeoApprovalForPdf || ceoAction) { // Show if CEO action exists or if it would have been required
     doc.text(val(ceoName), margin + 2*footerColWidth + BOX_PADDING, sigYPos);
     doc.line(margin + 2*footerColWidth + BOX_PADDING, sigLineYPos, margin + 3*footerColWidth - BOX_PADDING, sigLineYPos);
     doc.text(val(ceoPosition), margin + 2*footerColWidth + BOX_PADDING, posLineYPos);
     doc.text(`Date: ${val(ceoDate)}`, margin + 2*footerColWidth + BOX_PADDING, posLineYPos + LINE_HEIGHT);
   } else {
-     doc.text('N/A (Not Overseas)', margin + 2*footerColWidth + BOX_PADDING, sigYPos);
+     doc.text('N/A', margin + 2*footerColWidth + BOX_PADDING, sigYPos);
   }
 
   yPos += footerSectionHeight;

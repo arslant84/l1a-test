@@ -16,7 +16,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   CalendarIcon, Loader2, Send, UserCircle, Briefcase, Mail, Building, Award, 
   CalendarCheck2, LayoutList, MapPin, DollarSign, FileText, BookOpen, MapPinned, History, Paperclip, CalendarDays,
-  Tag, PackagePlus, Banknote, Landmark, Edit3, RotateCcw // Added Edit3, RotateCcw
+  Tag, PackagePlus, Banknote, Landmark, Edit3, RotateCcw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -47,15 +47,25 @@ const newRequestSchema = z.object({
   cost: z.coerce.number().min(0, { message: "Course Fee must be a non-negative number." }),
   mode: z.enum(locationModes, { required_error: "Mode of training is required." }),
   programType: z.enum(programTypes, { required_error: "Type of program is required." }),
-  previousRelevantTraining: z.string().max(1000, {message: "Previous training details must be at most 1000 characters."}).optional(),
-  supportingDocuments: z.custom<FileList>().optional()
-    .refine(files => !files || Array.from(files).every(file => file.size <= 5 * 1024 * 1024), `Max file size is 5MB.`)
-    .refine(files => !files || files.length <= 3, `You can upload a maximum of 3 files.`),
-  costCenter: z.string().optional().refine(val => !val || val.length <= 100, { message: "Cost center must be at most 100 characters." }),
+  previousRelevantTraining: z.string().max(1000, {message: "Previous training details must be at most 1000 characters."}).optional().default(''),
+  supportingDocuments: z.custom<FileList>().optional(),
+  costCenter: z.string().max(100, { message: "Cost center must be at most 100 characters." }).optional().default(''),
   estimatedLogisticCost: z.coerce.number().min(0, {message: "Estimated logistic cost must be non-negative."}).optional(),
   departmentApprovedBudget: z.coerce.number().min(0, {message: "Department approved budget must be non-negative."}).optional(),
   departmentBudgetBalance: z.coerce.number().min(0, {message: "Department budget balance must be non-negative."}).optional(),
-}).refine(data => data.endDate >= data.startDate, {
+}).refine(data => {
+    if (data.supportingDocuments) {
+      if (data.supportingDocuments.length > 3) return false;
+      for (let i = 0; i < data.supportingDocuments.length; i++) {
+        if (data.supportingDocuments[i].size > 5 * 1024 * 1024) return false;
+      }
+    }
+    return true;
+  }, {
+    message: "Max 3 files, 5MB each.", // This message might not be directly shown by RHF for custom refine, use FormDescription.
+    path: ["supportingDocuments"],
+  })
+  .refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"], 
 });
@@ -88,7 +98,7 @@ export function NewRequestForm() {
 
   const [formMode, setFormMode] = useState<'new' | 'edit' | 'reviseNew'>('new');
   const [isLoadingData, setIsLoadingData] = useState(false);
-  const [requestToLoad, setRequestToLoad] = useState<TrainingRequest | null>(null); // Stores original request for edit/revise
+  const [requestToLoad, setRequestToLoad] = useState<TrainingRequest | null>(null);
 
   const form = useForm<NewRequestFormValues>({
     resolver: zodResolver(newRequestSchema),
@@ -100,7 +110,11 @@ export function NewRequestForm() {
       cost: 0,
       previousRelevantTraining: '',
       costCenter: '',
-      // Dates and selects will be undefined until set
+      estimatedLogisticCost: undefined, // Initialize optional numbers as undefined
+      departmentApprovedBudget: undefined,
+      departmentBudgetBalance: undefined,
+      supportingDocuments: undefined,
+      // mode, programType, startDate, endDate will be undefined until selected
     },
   });
 
@@ -112,13 +126,13 @@ export function NewRequestForm() {
       setIsLoadingData(true);
       const req = trainingRequests.find(r => r.id === id);
       if (req) {
-        setRequestToLoad(req);
+        setRequestToLoad(req); // Store original request
         form.reset({
           trainingTitle: req.trainingTitle,
           justification: req.justification,
           organiser: req.organiser,
           venue: req.venue,
-          startDate: req.startDate, // These are already Date objects from parsing
+          startDate: req.startDate, 
           endDate: req.endDate,
           cost: req.cost,
           mode: req.mode,
@@ -128,10 +142,10 @@ export function NewRequestForm() {
           estimatedLogisticCost: req.estimatedLogisticCost ?? undefined,
           departmentApprovedBudget: req.departmentApprovedBudget ?? undefined,
           departmentBudgetBalance: req.departmentBudgetBalance ?? undefined,
+          supportingDocuments: undefined, // FileList cannot be pre-filled
         });
         setFormMode(mode);
          if (req.supportingDocuments && req.supportingDocuments.length > 0 && mode === 'edit') {
-            // Cannot pre-fill FileList, but can inform user
             toast({
                 title: "Editing Request with Documents",
                 description: `This request has ${req.supportingDocuments.length} existing document(s). Uploading new files will replace them.`,
@@ -151,9 +165,27 @@ export function NewRequestForm() {
       loadRequestData(reviseFromId, 'reviseNew');
     } else {
       setFormMode('new');
-      form.reset(); // Reset to default values for a truly new form
+      // Reset to ensure all fields, especially optional numbers, are undefined or empty strings
+      form.reset({
+        trainingTitle: '',
+        justification: '',
+        organiser: '',
+        venue: '',
+        cost: 0,
+        mode: undefined,
+        programType: undefined,
+        startDate: undefined,
+        endDate: undefined,
+        previousRelevantTraining: '',
+        costCenter: '',
+        estimatedLogisticCost: undefined,
+        departmentApprovedBudget: undefined,
+        departmentBudgetBalance: undefined,
+        supportingDocuments: undefined,
+      }); 
     }
-  }, [searchParams, trainingRequests, form, toast, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, trainingRequests, form, toast, router]); // form is stable, router is stable
 
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -177,7 +209,7 @@ export function NewRequestForm() {
     if (formMode === 'edit' && requestToLoad) {
       actionType = "updated";
       success = await updateTrainingRequestDetails(requestToLoad.id, data, requestToLoad);
-    } else { // 'new' or 'reviseNew'
+    } else { 
       actionType = formMode === 'reviseNew' ? "resubmitted as new" : "submitted";
       const documentNames = data.supportingDocuments ? Array.from(data.supportingDocuments).map(file => ({ name: file.name })) : [];
       const payload = { ...data, supportingDocuments: documentNames };
@@ -470,7 +502,14 @@ export function NewRequestForm() {
                   <FormLabel>Estimated Logistic Cost (USD - Optional)</FormLabel>
                 </div>
                 <FormControl>
-                  <Input type="number" placeholder="e.g., 100" {...field} min="0" step="0.01" />
+                  <Input 
+                    type="number" 
+                    placeholder="e.g., 100" 
+                    {...field} 
+                    value={field.value ?? ''} // Ensure value is not undefined for controlled input
+                    onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                    min="0" 
+                    step="0.01" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -504,7 +543,14 @@ export function NewRequestForm() {
                     <FormLabel>Dep. Approved Budget (USD - Optional)</FormLabel>
                   </div>
                   <FormControl>
-                    <Input type="number" placeholder="e.g., 5000" {...field} min="0" step="0.01" />
+                     <Input 
+                        type="number" 
+                        placeholder="e.g., 5000" 
+                        {...field} 
+                        value={field.value ?? ''} 
+                        onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                        min="0" 
+                        step="0.01" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -542,7 +588,14 @@ export function NewRequestForm() {
                     <FormLabel>Dep. Budget Balance (USD - Optional)</FormLabel>
                   </div>
                   <FormControl>
-                    <Input type="number" placeholder="e.g., 2500" {...field} min="0" step="0.01" />
+                    <Input 
+                        type="number" 
+                        placeholder="e.g., 2500" 
+                        {...field} 
+                        value={field.value ?? ''}
+                        onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                        min="0" 
+                        step="0.01" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -590,14 +643,23 @@ export function NewRequestForm() {
           <FormField
             control={form.control}
             name="supportingDocuments"
-            render={() => ( 
+            render={({ field: { onChange, ...fieldProps } }) => ( 
               <FormItem>
                 <div className="flex items-center gap-2">
                   <Paperclip className="h-5 w-5 text-muted-foreground" />
                   <FormLabel>Supporting Documents (Optional)</FormLabel>
                 </div>
                 <FormControl>
-                  <Input type="file" multiple onChange={handleFileChange} accept=".pdf,.doc,.docx,.jpg,.png" />
+                  <Input 
+                    type="file" 
+                    multiple 
+                    onChange={(e) => {
+                      onChange(e.target.files); // Pass FileList to RHF
+                      handleFileChange(e);    // Update local state for preview
+                    }}
+                    {...fieldProps} // Pass other RHF props except onChange and value
+                    accept=".pdf,.doc,.docx,.jpg,.png" 
+                  />
                 </FormControl>
                 <FormDescription>
                    {formMode === 'edit' && requestToLoad?.supportingDocuments && requestToLoad.supportingDocuments.length > 0
@@ -632,3 +694,4 @@ export function NewRequestForm() {
     </>
   );
 }
+
