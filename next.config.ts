@@ -21,12 +21,11 @@ const nextConfig: NextConfig = {
   },
   allowedDevOrigins: ['https://6000-firebase-studio-1749929670762.cluster-oayqgyglpfgseqclbygurw4xd4.cloudworkstations.dev'],
   webpack: (config, { isServer, webpack }) => {
-    // Required for sql.js to load its Wasm file
+    // Required for sql.js (and potentially its dependencies) to function in the browser
     config.resolve.fallback = {
       ...config.resolve.fallback,
-      fs: false, // fs is not available in the browser
-      path: false, // path is not available in the browser
-      // sql.js might need other fallbacks, add them here if build errors occur
+      fs: false, 
+      path: false, 
       crypto: false,
       stream: false,
       http: false,
@@ -41,18 +40,12 @@ const nextConfig: NextConfig = {
       vm: false,
     };
 
-    // Rule to handle .wasm files
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: "asset/resource", // This tells Webpack to treat .wasm files as assets
-      generator: {
-        filename: 'static/wasm/[name][ext]' // Optional: control output path/name
-      }
-    });
-    
-    // experiments.asyncWebAssembly is deprecated, direct wasm rule is preferred
-    // config.experiments = { ...config.experiments, asyncWebAssembly: true };
-
+    // If sql-wasm.wasm is in the /public directory and sql.js is configured to fetch it 
+    // (e.g., via locateFile pointing to /sql-wasm.wasm), 
+    // an explicit Webpack rule for .wasm files here is generally not needed for sql.js.
+    // Next.js will serve files from /public statically.
+    // The previous rule for asset/resource might conflict if Webpack tries to process
+    // a .wasm file from node_modules that sql.js isn't expecting to be bundled.
 
     return config;
   },
