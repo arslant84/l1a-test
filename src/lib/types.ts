@@ -51,7 +51,7 @@ export interface TrainingRequest {
   venue: string;
   startDate: Date;
   endDate: Date;
-  cost: number;
+  cost: number; // This is the "Course Fee"
   mode: TrainingRequestLocationMode;
   programType: ProgramType;
   previousRelevantTraining?: string;
@@ -64,6 +64,12 @@ export interface TrainingRequest {
   cancelledByUserId?: string;
   cancelledDate?: Date;
   cancellationReason?: string;
+
+  // New fields from L1A PDF
+  costCenter?: string;
+  estimatedLogisticCost?: number;
+  departmentApprovedBudget?: number;
+  departmentBudgetBalance?: number;
 }
 
 // Placeholder for VendorInputFields as its definition was not provided
@@ -89,3 +95,4 @@ export interface VendorInputFields {
   // Add any other fields that are part of VENDOR_COLUMNS in database.ts
   [key: string]: any; // Allow other properties if needed
 }
+

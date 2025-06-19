@@ -8,8 +8,15 @@ import { format } from 'date-fns';
 const val = (data: any, defaultValue: string = 'N/A'): string => {
   if (data === undefined || data === null || data === '') return defaultValue;
   if (data instanceof Date) return format(data, 'dd MMM yyyy');
+  if (typeof data === 'number') return data.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); // Format numbers
   return String(data);
 };
+
+const currencyVal = (data: any, defaultValue: string = 'N/A'): string => {
+  if (data === undefined || data === null) return defaultValue;
+  if (typeof data === 'number') return `$${data.toFixed(2)}`;
+  return String(data);
+}
 
 const programTypeDisplayNames: Record<TrainingRequest['programType'], string> = {
   'course': 'Course',
@@ -114,8 +121,8 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
   const fieldHeight = 7;
   const col1Width = contentWidth * 0.6;
   const col2Width = contentWidth * 0.4;
-  const subCol2Width1 = col2Width * 0.4;
-  const subCol2Width2 = col2Width * 0.6;
+  // const subCol2Width1 = col2Width * 0.4; // Not used from original, but keeping for reference if needed
+  // const subCol2Width2 = col2Width * 0.6; // Not used
 
   drawField('NAME', val(employee?.name), margin, yPos, col1Width, fieldHeight, {labelWidth: col1Width * 0.2});
   drawField('STAFF No.', val(employee?.staffNo), margin + col1Width, yPos, col2Width, fieldHeight, {labelWidth: col2Width * 0.4});
@@ -125,16 +132,17 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
   drawField('DEPT/DIV', val(employee?.department), margin + col1Width, yPos, col2Width, fieldHeight, {labelWidth: col2Width * 0.4});
   yPos += fieldHeight;
   
-  drawField('LOCATION', 'N/A', margin, yPos, col1Width, fieldHeight, {labelWidth: col1Width * 0.2}); // Location not in model
-  drawField('H/P No.', 'N/A', margin + col1Width, yPos, col2Width, fieldHeight, {labelWidth: col2Width * 0.4}); // H/P No. not in model
+  // These fields are on L1A but not in current Employee model:
+  drawField('LOCATION', 'N/A (e.g. Office Ext)', margin, yPos, col1Width, fieldHeight, {labelWidth: col1Width * 0.2}); 
+  drawField('H/P No.', 'N/A (e.g. +6012345678)', margin + col1Width, yPos, col2Width, fieldHeight, {labelWidth: col2Width * 0.4}); 
   yPos += fieldHeight;
 
   doc.setFontSize(FONT_SIZE_SMALL);
   doc.text('BRIEF CURRENT JOB RESPONSIBILITY:', margin + BOX_PADDING, yPos + fieldHeight/2 + (FONT_SIZE_SMALL/3));
   doc.rect(margin, yPos, contentWidth, fieldHeight * 2);
+  // Add placeholder text or fetch from a job description if available for employee. For now, empty.
   yPos += fieldHeight * 2;
   
-  // Emergency Contact - Not in model, drawing structure
   doc.setFontSize(FONT_SIZE_SMALL);
   doc.text('CONTACT PERSON IN TIME OF EMERGENCY', margin + BOX_PADDING, yPos + fieldHeight/2 + (FONT_SIZE_SMALL/3));
   yPos += fieldHeight;
@@ -152,96 +160,105 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
   drawField('PROGRAM TITLE', val(request.trainingTitle), margin, yPos, contentWidth, fieldHeight, { labelWidth: contentWidth * 0.25 });
   yPos += fieldHeight;
 
-  // Program Location (Checkboxes in form, text here)
-  let programLocationText = '';
-  if (request.mode === 'in-house') programLocationText = 'IN-HOUSE';
-  else if (request.mode === 'overseas') programLocationText = 'EXTERNAL OVERSEAS';
-  else if (request.mode === 'local') programLocationText = 'EXTERNAL LOCAL';
-  else if (request.mode === 'online') programLocationText = 'ONLINE'; // Not explicitly a box in form, but a mode
-
+  let programLocationText = locationModeDisplayNames[request.mode] || val(request.mode);
   drawField('PROGRAM LOCATION', programLocationText, margin, yPos, contentWidth, fieldHeight, { labelWidth: contentWidth * 0.25 });
   yPos += fieldHeight;
 
-  // Type of Program (Checkboxes in form, text here)
-  drawField('TYPE OF PROGRAM', programTypeDisplayNames[request.programType], margin, yPos, contentWidth, fieldHeight, { labelWidth: contentWidth * 0.25 });
+  drawField('TYPE OF PROGRAM', programTypeDisplayNames[request.programType] || val(request.programType), margin, yPos, contentWidth, fieldHeight, { labelWidth: contentWidth * 0.25 });
   yPos += fieldHeight;
 
-  // Course Category (Checkboxes in form, text here - using programType as proxy)
-  drawField('COURSE CATEGORY', programTypeDisplayNames[request.programType], margin, yPos, contentWidth, fieldHeight, { labelWidth: contentWidth * 0.25 });
+  drawField('COURSE CATEGORY', programTypeDisplayNames[request.programType] || val(request.programType) , margin, yPos, contentWidth, fieldHeight, { labelWidth: contentWidth * 0.25 }); // Using programType as proxy
   yPos += fieldHeight;
   
-  drawField('COST CENTER', 'N/A', margin, yPos, contentWidth * 0.6, fieldHeight, { labelWidth: contentWidth * 0.25 });
-  drawField('COURSE FEE', val(request.cost, '$0.00'), margin + contentWidth * 0.6, yPos, contentWidth * 0.4, fieldHeight, { labelWidth: contentWidth * 0.2 });
+  drawField('COST CENTER', val(request.costCenter), margin, yPos, contentWidth * 0.6, fieldHeight, { labelWidth: contentWidth * 0.25 });
+  drawField('COURSE FEE', currencyVal(request.cost), margin + contentWidth * 0.6, yPos, contentWidth * 0.4, fieldHeight, { labelWidth: contentWidth * 0.2});
   yPos += fieldHeight;
 
   const datesText = `${format(request.startDate, 'dd MMM yyyy')} - ${format(request.endDate, 'dd MMM yyyy')}`;
   drawField('DATES', datesText, margin, yPos, contentWidth * 0.6, fieldHeight, { labelWidth: contentWidth * 0.25 });
-  drawField('ESTIMATED LOGISTIC COST', 'N/A', margin + contentWidth * 0.6, yPos, contentWidth * 0.4, fieldHeight, { labelWidth: contentWidth * 0.2});
+  drawField('ESTIMATED LOGISTIC COST', currencyVal(request.estimatedLogisticCost), margin + contentWidth * 0.6, yPos, contentWidth * 0.4, fieldHeight, { labelWidth: contentWidth * 0.2});
   yPos += fieldHeight;
 
   drawField('TRAINING PROVIDER', val(request.organiser), margin, yPos, contentWidth * 0.6, fieldHeight, { labelWidth: contentWidth * 0.25 });
-  drawField('DEP. APPROVED BUDGET', 'N/A', margin + contentWidth * 0.6, yPos, contentWidth * 0.4, fieldHeight, { labelWidth: contentWidth * 0.2 });
+  drawField('DEP. APPROVED BUDGET', currencyVal(request.departmentApprovedBudget), margin + contentWidth * 0.6, yPos, contentWidth * 0.4, fieldHeight, { labelWidth: contentWidth * 0.2 });
   yPos += fieldHeight;
 
   drawField('VENUE', val(request.venue), margin, yPos, contentWidth * 0.6, fieldHeight, { labelWidth: contentWidth * 0.25 });
-  drawField('DEP. BUDGET BALANCE', 'N/A', margin + contentWidth * 0.6, yPos, contentWidth * 0.4, fieldHeight, { labelWidth: contentWidth * 0.2 });
+  drawField('DEP. BUDGET BALANCE', currencyVal(request.departmentBudgetBalance), margin + contentWidth * 0.6, yPos, contentWidth * 0.4, fieldHeight, { labelWidth: contentWidth * 0.2 });
   yPos += fieldHeight;
 
   // --- Section C: Justification for Nomination ---
   yPos = drawSectionTitle("C. JUSTIFICATION FOR NOMINATION", yPos, fieldHeight, "(To be completed by Immediate Superior)");
   
-  // Staff Development Plan Y/N - Not in model
   doc.setFontSize(FONT_SIZE_SMALL);
   doc.text('IS THIS PROGRAM IDENTIFIED IN STAFF DEVELOPMENT PLAN (eg. ACD ICP, OFA PDP)?', margin + BOX_PADDING, yPos + fieldHeight/2 + (FONT_SIZE_SMALL/3));
   doc.rect(margin + contentWidth - 30, yPos, 15, fieldHeight);
   doc.text('YES', margin + contentWidth - 30 + 7.5, yPos + fieldHeight/2 + (FONT_SIZE_SMALL/3), {align: 'center'});
   doc.rect(margin + contentWidth - 15, yPos, 15, fieldHeight);
   doc.text('NO', margin + contentWidth - 15 + 7.5, yPos + fieldHeight/2 + (FONT_SIZE_SMALL/3), {align: 'center'});
+  // TODO: Add logic to check a box based on data if available
   yPos += fieldHeight;
   
-  // Job Relevancy / Career Development - Using general justification
+  const superiorAction = request.approvalChain.find(a => a.stepRole === 'supervisor');
+  const supervisorJustification = superiorAction?.notes || request.justification; // Use supervisor's notes if available for C
+
   doc.setFontSize(FONT_SIZE_SMALL);
   doc.text('A. JOB RELEVANCY', margin + BOX_PADDING, yPos + fieldHeight/2 + (FONT_SIZE_SMALL/3));
   yPos += fieldHeight;
-  doc.rect(margin, yPos, contentWidth, fieldHeight * 1.5); // Placeholder box
+  doc.rect(margin, yPos, contentWidth, fieldHeight * 1.5); 
+  doc.setFontSize(FONT_SIZE_NORMAL);
+  const jobRelevancyLines = doc.splitTextToSize("Relates to current role by: " + (superiorJustification || "N/A"), contentWidth - 2 * BOX_PADDING);
+  doc.text(jobRelevancyLines, margin + BOX_PADDING, yPos + LINE_HEIGHT * 0.5);
   yPos += fieldHeight * 1.5;
 
   doc.setFontSize(FONT_SIZE_SMALL);
   doc.text('B. CAREER DEVELOPMENT', margin + BOX_PADDING, yPos + fieldHeight/2 + (FONT_SIZE_SMALL/3));
   yPos += fieldHeight;
-  doc.rect(margin, yPos, contentWidth, fieldHeight * 1.5); // Placeholder box
-  yPos += fieldHeight * 1.5;
-
-  doc.setFontSize(FONT_SIZE_SMALL);
-  doc.text('JUSTIFICATION:', margin + BOX_PADDING, yPos + LINE_HEIGHT -1);
+  doc.rect(margin, yPos, contentWidth, fieldHeight * 1.5); 
   doc.setFontSize(FONT_SIZE_NORMAL);
-  const justificationLines = doc.splitTextToSize(val(request.justification), contentWidth - 2 * BOX_PADDING);
-  doc.rect(margin, yPos, contentWidth, fieldHeight * 3.5);
-  doc.text(justificationLines, margin + BOX_PADDING, yPos + LINE_HEIGHT);
-  yPos += fieldHeight * 3.5;
-
-  const superiorAction = request.approvalChain.find(a => a.stepRole === 'supervisor');
+  const careerDevLines = doc.splitTextToSize("Contributes to career dev by: " + (superiorJustification || "N/A"), contentWidth - 2 * BOX_PADDING);
+  doc.text(careerDevLines, margin + BOX_PADDING, yPos + LINE_HEIGHT * 0.5);
+  yPos += fieldHeight * 1.5;
+  
   const superiorName = superiorAction?.userName || (employee?.managerId ? users.find(u => u.id === employee.managerId)?.name : 'N/A');
   const superiorPosition = superiorAction ? (users.find(u => u.id === superiorAction.userId)?.position || 'Supervisor') : (employee?.managerId ? users.find(u => u.id === employee.managerId)?.position : 'N/A');
+  const superiorSignDate = superiorAction ? format(superiorAction.date, 'dd MMM yyyy') : 'N/A';
+
 
   drawField('NAME:', val(superiorName), margin, yPos, contentWidth * 0.5, fieldHeight, {noBorder: true});
   drawField('POSITION:', val(superiorPosition), margin + contentWidth * 0.5, yPos, contentWidth * 0.3, fieldHeight, {noBorder: true});
   drawField('SIGNATURE:', '', margin + contentWidth * 0.8, yPos, contentWidth * 0.2, fieldHeight, {noBorder: true});
-  doc.line(margin + contentWidth * 0.8 + 25 , yPos + fieldHeight -1, margin + contentWidth - BOX_PADDING, yPos + fieldHeight-1); // Signature line
+  doc.line(margin + contentWidth * 0.8 + 25 , yPos + fieldHeight -1.5, margin + contentWidth - BOX_PADDING, yPos + fieldHeight-1.5); // Signature line
+  yPos += fieldHeight;
+  drawField('DATE:', val(superiorSignDate), margin, yPos, contentWidth * 0.5, fieldHeight, {noBorder: true});
   yPos += fieldHeight;
 
+
   // --- Section D: Endorsement by Department Head ---
+  // Assuming THR acts as Dept Head for endorsement purposes if no specific Dept Head step
+  const thrAction = request.approvalChain.find(a => a.stepRole === 'thr');
+  const deptHeadName = thrAction?.userName || 'N/A';
+  const deptHeadPosition = thrAction ? (users.find(u => u.id === thrAction.userId)?.position || 'THR') : 'N/A';
+  const deptHeadSignDate = thrAction ? format(thrAction.date, 'dd MMM yyyy') : 'N/A';
+  const deptHeadRemarks = thrAction?.notes || 'N/A';
+
   yPos = drawSectionTitle("D. ENDORSEMENT BY DEPARTMENT HEAD", yPos);
   doc.setFontSize(FONT_SIZE_SMALL);
   doc.text('REMARKS:', margin + BOX_PADDING, yPos + LINE_HEIGHT -1);
-  doc.rect(margin, yPos, contentWidth, fieldHeight * 3); // Placeholder for remarks
-  yPos += fieldHeight * 3;
+  doc.rect(margin, yPos, contentWidth, fieldHeight * 2); 
+  doc.setFontSize(FONT_SIZE_NORMAL);
+  const deptHeadRemarkLines = doc.splitTextToSize(val(deptHeadRemarks), contentWidth - 2 * BOX_PADDING);
+  doc.text(deptHeadRemarkLines, margin + BOX_PADDING, yPos + LINE_HEIGHT * 0.5);
+  yPos += fieldHeight * 2;
 
-  drawField('NAME:', 'N/A', margin, yPos, contentWidth * 0.5, fieldHeight, {noBorder: true});
-  drawField('POSITION:', 'N/A', margin + contentWidth * 0.5, yPos, contentWidth * 0.3, fieldHeight, {noBorder: true});
+  drawField('NAME:', val(deptHeadName), margin, yPos, contentWidth * 0.5, fieldHeight, {noBorder: true});
+  drawField('POSITION:', val(deptHeadPosition), margin + contentWidth * 0.5, yPos, contentWidth * 0.3, fieldHeight, {noBorder: true});
   drawField('SIGNATURE:', '', margin + contentWidth * 0.8, yPos, contentWidth * 0.2, fieldHeight, {noBorder: true});
-  doc.line(margin + contentWidth * 0.8 + 25 , yPos + fieldHeight -1, margin + contentWidth - BOX_PADDING, yPos + fieldHeight-1);
+  doc.line(margin + contentWidth * 0.8 + 25 , yPos + fieldHeight -1.5, margin + contentWidth - BOX_PADDING, yPos + fieldHeight-1.5);
   yPos += fieldHeight;
+  drawField('DATE:', val(deptHeadSignDate), margin, yPos, contentWidth * 0.5, fieldHeight, {noBorder: true});
+  yPos += fieldHeight;
+
 
   // --- Footer Sections E, F, G ---
   const footerSectionHeight = 35;
@@ -257,49 +274,66 @@ export const generateL1APdf = (request: TrainingRequest, employee: Employee | nu
   doc.text('F. ENDORSEMENT', margin + footerColWidth + footerColWidth / 2, yPos + LINE_HEIGHT, { align: 'center' });
   doc.text('G. APPROVAL', margin + 2 * footerColWidth + footerColWidth / 2, yPos + LINE_HEIGHT, { align: 'center' });
   doc.setFont('helvetica', 'normal');
-  yPos += LINE_HEIGHT * 1.5;
+  
+  const sigYPos = yPos + footerSectionHeight * 0.6;
+  const sigLineYPos = sigYPos + 1;
+  const posLineYPos = sigYPos + LINE_HEIGHT;
+  
+  // E. Verification (CM)
+  const cmAction = request.approvalChain.find(a => a.stepRole === 'cm' && a.decision === 'processed');
+  const cmName = cmAction?.userName || "Shohrat Otuzov"; // Default from form if not processed
+  const cmPosition = users.find(u=>u.id === cmAction?.userId)?.position || "Manager, Capability Management";
+  const cmDate = cmAction ? format(cmAction.date, 'dd MMM yyyy') : 'N/A';
   
   doc.setFontSize(FONT_SIZE_SMALL -1);
-  doc.text('COMPULSORY / RECOMMENDED / NOT RECOMMENDED', margin + BOX_PADDING, yPos);
-  yPos += LINE_HEIGHT * 1.5;
-  doc.text('NOTE:', margin + BOX_PADDING, yPos);
-  
-  const cmAction = request.approvalChain.find(a => a.stepRole === 'cm');
-  const cmName = cmAction?.userName || "Shohrat Otuzov"; // Default from form
-  const cmPosition = "Manager, Capability Management"; // Default from form
+  doc.text('COMPULSORY / RECOMMENDED / NOT RECOMMENDED', margin + BOX_PADDING, yPos + LINE_HEIGHT * 2);
+  doc.text('NOTE:', margin + BOX_PADDING, yPos + LINE_HEIGHT * 3);
+  doc.text(val(cmAction?.notes), margin + BOX_PADDING + doc.getTextWidth('NOTE:') + 1, yPos + LINE_HEIGHT * 3, {maxWidth: footerColWidth - BOX_PADDING * 2 - doc.getTextWidth('NOTE:') -1});
 
-  doc.text(cmName, margin + BOX_PADDING, yPos + footerSectionHeight * 0.6);
-  doc.line(margin + BOX_PADDING, yPos + footerSectionHeight * 0.6 + 1, margin + footerColWidth - BOX_PADDING, yPos + footerSectionHeight * 0.6 + 1);
-  doc.text(cmPosition, margin + BOX_PADDING, yPos + footerSectionHeight * 0.6 + LINE_HEIGHT);
 
-  // Endorsement section
-  const thrAction = request.approvalChain.find(a => a.stepRole === 'thr');
-  const thrName = thrAction?.userName || 'HEAD THR, PC(T)SB';
-  doc.text('ENDORSED BY:', margin + footerColWidth + BOX_PADDING, yPos - LINE_HEIGHT *0.5);
-  doc.text(thrName, margin + footerColWidth + BOX_PADDING, yPos + footerSectionHeight * 0.6);
-  doc.line(margin + footerColWidth + BOX_PADDING, yPos + footerSectionHeight * 0.6 + 1, margin + 2*footerColWidth - BOX_PADDING, yPos + footerSectionHeight * 0.6 + 1);
-  // doc.text('HEAD THR, PC(T)SB', margin + footerColWidth + BOX_PADDING, yPos + footerSectionHeight * 0.6 + LINE_HEIGHT); // Role already in name
+  doc.text(val(cmName), margin + BOX_PADDING, sigYPos);
+  doc.line(margin + BOX_PADDING, sigLineYPos, margin + footerColWidth - BOX_PADDING, sigLineYPos);
+  doc.text(val(cmPosition), margin + BOX_PADDING, posLineYPos);
+  doc.text(`Date: ${val(cmDate)}`, margin + BOX_PADDING, posLineYPos + LINE_HEIGHT);
 
-  // Approval section
-  const ceoAction = request.approvalChain.find(a => a.stepRole === 'ceo');
-  const ceoName = ceoAction?.userName || 'CEO, PC(T)SB';
-  doc.text('APPROVED BY: (ONLY OVERSEAS)', margin + 2*footerColWidth + BOX_PADDING, yPos - LINE_HEIGHT*0.5);
+
+  // F. Endorsement (THR)
+  // Re-use thrAction from Section D if appropriate, or find the one marking approval
+  const thrApprovalAction = request.approvalChain.find(a => a.stepRole === 'thr' && a.decision === 'approved');
+  const thrEndorserName = thrApprovalAction?.userName || (thrAction?.decision === 'approved' ? thrAction.userName : 'HEAD THR, PC(T)SB');
+  const thrEndorserPos = users.find(u=>u.id === thrApprovalAction?.userId)?.position || (thrAction?.decision === 'approved' ? users.find(u=>u.id === thrAction.userId)?.position || 'THR' : 'THR Manager');
+  const thrEndorserDate = thrApprovalAction?.date ? format(thrApprovalAction.date, 'dd MMM yyyy') : (thrAction?.decision === 'approved' ? format(thrAction.date, 'dd MMM yyyy') : 'N/A');
+
+  doc.text('ENDORSED BY:', margin + footerColWidth + BOX_PADDING, yPos + LINE_HEIGHT * 2);
+  doc.text(val(thrEndorserName), margin + footerColWidth + BOX_PADDING, sigYPos);
+  doc.line(margin + footerColWidth + BOX_PADDING, sigLineYPos, margin + 2*footerColWidth - BOX_PADDING, sigLineYPos);
+  doc.text(val(thrEndorserPos), margin + footerColWidth + BOX_PADDING, posLineYPos);
+  doc.text(`Date: ${val(thrEndorserDate)}`, margin + footerColWidth + BOX_PADDING, posLineYPos + LINE_HEIGHT);
+
+  // G. Approval (CEO - only for overseas)
+  const ceoAction = request.approvalChain.find(a => a.stepRole === 'ceo' && a.decision === 'approved');
+  const ceoName = ceoAction?.userName || (request.mode === 'overseas' ? 'CEO, PC(T)SB' : 'N/A (Not Overseas)');
+  const ceoPosition = users.find(u=>u.id === ceoAction?.userId)?.position || (request.mode === 'overseas' ? 'CEO' : '');
+  const ceoDate = ceoAction ? format(ceoAction.date, 'dd MMM yyyy') : (request.mode === 'overseas' ? 'N/A' : '');
+
+  doc.text('APPROVED BY: (ONLY OVERSEAS)', margin + 2*footerColWidth + BOX_PADDING, yPos + LINE_HEIGHT * 2);
   if (request.mode === 'overseas' || ceoAction) {
-    doc.text(ceoName, margin + 2*footerColWidth + BOX_PADDING, yPos + footerSectionHeight * 0.6);
-    doc.line(margin + 2*footerColWidth + BOX_PADDING, yPos + footerSectionHeight * 0.6 + 1, margin + 3*footerColWidth - BOX_PADDING, yPos + footerSectionHeight * 0.6 + 1);
-    // doc.text('CEO, PC(T)SB', margin + 2*footerColWidth + BOX_PADDING, yPos + footerSectionHeight * 0.6 + LINE_HEIGHT); // Role in name
+    doc.text(val(ceoName), margin + 2*footerColWidth + BOX_PADDING, sigYPos);
+    doc.line(margin + 2*footerColWidth + BOX_PADDING, sigLineYPos, margin + 3*footerColWidth - BOX_PADDING, sigLineYPos);
+    doc.text(val(ceoPosition), margin + 2*footerColWidth + BOX_PADDING, posLineYPos);
+    doc.text(`Date: ${val(ceoDate)}`, margin + 2*footerColWidth + BOX_PADDING, posLineYPos + LINE_HEIGHT);
   } else {
-     doc.text('N/A (Not Overseas)', margin + 2*footerColWidth + BOX_PADDING, yPos + footerSectionHeight * 0.6);
+     doc.text('N/A (Not Overseas)', margin + 2*footerColWidth + BOX_PADDING, sigYPos);
   }
 
   yPos += footerSectionHeight;
-  yPos -= LINE_HEIGHT; // Adjust for revised date line
+  yPos -= LINE_HEIGHT; 
 
   // Revised Date
   doc.setFontSize(FONT_SIZE_SMALL);
-  doc.text('Revised: 02.10.2023', margin, yPos);
+  doc.text('Revised: 02.10.2023', margin, pageHeight - margin + 5 > yPos ? pageHeight - margin + 5 : yPos + 5 );
 
-  // Trigger download
+
   doc.save(`L1A_Form_${employee?.name?.replace(/\s/g, '_') || 'Employee'}_${request.id}.pdf`);
 };
 

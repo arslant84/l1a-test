@@ -49,7 +49,7 @@ function createTables(db: Database) {
     'venue TEXT, ' +
     'startDate TEXT, ' +
     'endDate TEXT, ' +
-    'cost REAL, ' +
+    'cost REAL, ' + // This is Course Fee
     'mode TEXT, ' +
     'programType TEXT, ' +
     'previousRelevantTraining TEXT, ' +
@@ -61,7 +61,11 @@ function createTables(db: Database) {
     'lastUpdated TEXT, ' +
     'cancelledByUserId TEXT, ' +
     'cancelledDate TEXT, ' +
-    'cancellationReason TEXT' +
+    'cancellationReason TEXT, ' +
+    'costCenter TEXT, ' + // New field
+    'estimatedLogisticCost REAL, ' + // New field
+    'departmentApprovedBudget REAL, ' + // New field
+    'departmentBudgetBalance REAL' + // New field
     ');'
   );
   console.log("Database tables (employees, training_requests) ensured/created in the current DB instance.");
@@ -250,8 +254,13 @@ export function parseTrainingRequest(dbRequest: any): TrainingRequest {
     lastUpdated: new Date(dbRequest.lastUpdated),
     supportingDocuments: supportingDocuments,
     approvalChain: approvalChain,
-    cost: Number(dbRequest.cost),
+    cost: Number(dbRequest.cost), // Course Fee
     cancelledDate: dbRequest.cancelledDate ? new Date(dbRequest.cancelledDate) : undefined,
+    // New fields
+    costCenter: dbRequest.costCenter,
+    estimatedLogisticCost: dbRequest.estimatedLogisticCost !== null ? Number(dbRequest.estimatedLogisticCost) : undefined,
+    departmentApprovedBudget: dbRequest.departmentApprovedBudget !== null ? Number(dbRequest.departmentApprovedBudget) : undefined,
+    departmentBudgetBalance: dbRequest.departmentBudgetBalance !== null ? Number(dbRequest.departmentBudgetBalance) : undefined,
   };
 }
 
@@ -286,3 +295,4 @@ export async function saveDatabaseChanges(): Promise<void> {
     console.warn("Attempted to save database, but dbInstance is null.");
   }
 }
+

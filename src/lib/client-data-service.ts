@@ -44,7 +44,7 @@ export async function addTrainingRequestAction(
 
   try {
     db.run(
-      'INSERT INTO training_requests (id, employeeId, employeeName, trainingTitle, justification, organiser, venue, startDate, endDate, cost, mode, programType, previousRelevantTraining, supportingDocuments, status, currentApprovalStep, approvalChain, submittedDate, lastUpdated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO training_requests (id, employeeId, employeeName, trainingTitle, justification, organiser, venue, startDate, endDate, cost, mode, programType, previousRelevantTraining, supportingDocuments, status, currentApprovalStep, approvalChain, submittedDate, lastUpdated, costCenter, estimatedLogisticCost, departmentApprovedBudget, departmentBudgetBalance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         newRequestId,
         currentUser.id,
@@ -55,7 +55,7 @@ export async function addTrainingRequestAction(
         requestData.venue,
         requestData.startDate.toISOString(),
         requestData.endDate.toISOString(),
-        requestData.cost,
+        requestData.cost, // Course Fee
         requestData.mode,
         requestData.programType,
         requestData.previousRelevantTraining || null,
@@ -64,7 +64,11 @@ export async function addTrainingRequestAction(
         'supervisor', 
         JSON.stringify([]), 
         submittedDate,
-        submittedDate
+        submittedDate,
+        requestData.costCenter || null,
+        requestData.estimatedLogisticCost !== undefined ? requestData.estimatedLogisticCost : null,
+        requestData.departmentApprovedBudget !== undefined ? requestData.departmentApprovedBudget : null,
+        requestData.departmentBudgetBalance !== undefined ? requestData.departmentBudgetBalance : null,
       ]
     );
     await saveDatabaseChanges(); 

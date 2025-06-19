@@ -15,7 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 import { 
   CalendarIcon, Loader2, Send, UserCircle, Briefcase, Mail, Building, Award, 
-  CalendarCheck2, LayoutList, MapPin, DollarSign, FileText, BookOpen, MapPinned, History, Paperclip, CalendarDays
+  CalendarCheck2, LayoutList, MapPin, DollarSign, FileText, BookOpen, MapPinned, History, Paperclip, CalendarDays,
+  Tag, PackagePlus, Banknote, Landmark // Icons for new fields
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -43,13 +44,18 @@ const newRequestSchema = z.object({
   venue: z.string().min(3, { message: "Venue must be at least 3 characters." }).max(200),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
-  cost: z.coerce.number().min(0, { message: "Cost must be a non-negative number." }),
+  cost: z.coerce.number().min(0, { message: "Course Fee must be a non-negative number." }), // Labelled as Course Fee
   mode: z.enum(locationModes, { required_error: "Mode of training is required." }),
   programType: z.enum(programTypes, { required_error: "Type of program is required." }),
   previousRelevantTraining: z.string().max(1000, {message: "Previous training details must be at most 1000 characters."}).optional(),
   supportingDocuments: z.custom<FileList>().optional()
     .refine(files => !files || Array.from(files).every(file => file.size <= 5 * 1024 * 1024), `Max file size is 5MB.`)
     .refine(files => !files || files.length <= 3, `You can upload a maximum of 3 files.`),
+  // New fields from L1A PDF
+  costCenter: z.string().optional().refine(val => !val || val.length <= 100, { message: "Cost center must be at most 100 characters." }),
+  estimatedLogisticCost: z.coerce.number().min(0, {message: "Estimated logistic cost must be non-negative."}).optional(),
+  departmentApprovedBudget: z.coerce.number().min(0, {message: "Department approved budget must be non-negative."}).optional(),
+  departmentBudgetBalance: z.coerce.number().min(0, {message: "Department budget balance must be non-negative."}).optional(),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"], 
@@ -88,6 +94,7 @@ export function NewRequestForm() {
       venue: '',
       cost: 0,
       previousRelevantTraining: '',
+      costCenter: '',
     },
   });
 
@@ -103,7 +110,8 @@ export function NewRequestForm() {
     setIsSubmitting(true);
     const documentNames = data.supportingDocuments ? Array.from(data.supportingDocuments).map(file => ({ name: file.name })) : [];
     
-    const success = await addTrainingRequest({
+    // Ensure all optional numeric fields are passed as numbers or undefined
+    const requestPayload = {
       trainingTitle: data.trainingTitle,
       justification: data.justification,
       organiser: data.organiser,
@@ -115,7 +123,13 @@ export function NewRequestForm() {
       programType: data.programType,
       previousRelevantTraining: data.previousRelevantTraining,
       supportingDocuments: documentNames,
-    });
+      costCenter: data.costCenter,
+      estimatedLogisticCost: data.estimatedLogisticCost,
+      departmentApprovedBudget: data.departmentApprovedBudget,
+      departmentBudgetBalance: data.departmentBudgetBalance,
+    };
+
+    const success = await addTrainingRequest(requestPayload);
 
     if (success) {
       toast({ title: "Request Submitted", description: "Your training request has been successfully submitted." });
@@ -193,75 +207,104 @@ export function NewRequestForm() {
               </FormItem>
             )}
           />
-
-          <FormField
-            control={form.control}
-            name="justification"
-            render={({ field }) => (
-              <FormItem>
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                  <FormLabel>Justification for Training</FormLabel>
-                </div>
-                <FormControl>
-                  <Textarea placeholder="Describe the training benefits and how it aligns with your role/goals..." {...field} rows={4} />
-                </FormControl>
-                <FormDescription>
-                  Clearly state the objectives and expected outcomes.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
+          
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             <FormField
               control={form.control}
-              name="organiser"
+              name="mode"
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center gap-2">
-                    <Briefcase className="h-5 w-5 text-muted-foreground" />
-                    <FormLabel>Organiser / Training Provider</FormLabel>
+                    <MapPinned className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Program Location</FormLabel>
                   </div>
-                  <FormControl>
-                    <Input placeholder="e.g., TechSeminars Inc." {...field} />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select location" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {locationModes.map(value => (
+                        <SelectItem key={value} value={value}>{locationModeDisplayNames[value]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-             <FormField
+            <FormField
               control={form.control}
-              name="venue"
+              name="programType" // Also serves for "Course Category"
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5 text-muted-foreground" />
-                    <FormLabel>Venue</FormLabel>
+                    <LayoutList className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Type of Program / Course Category</FormLabel>
                   </div>
-                  <FormControl>
-                    <Input placeholder="e.g., Online, New York City, Local Training Center" {...field} />
-                  </FormControl>
-                   <FormDescription>
-                    For 'Online' or 'In-House' mode, specify platform or building name.
-                  </FormDescription>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select program type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                       {programTypes.map(value => (
+                        <SelectItem key={value} value={value}>{programTypeDisplayNames[value]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
 
-
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+             <FormField
+              control={form.control}
+              name="costCenter"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Cost Center (Optional)</FormLabel>
+                  </div>
+                  <FormControl>
+                    <Input placeholder="e.g., CC12345" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="cost" // This is Course Fee
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Course Fee (USD)</FormLabel>
+                  </div>
+                  <FormControl>
+                    <Input type="number" placeholder="e.g., 500" {...field} min="0" step="0.01" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             <FormField
               control={form.control}
               name="startDate"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <div className="flex items-center gap-2 mb-2"> {/* Adjusted margin for popover trigger */}
+                  <div className="flex items-center gap-2 mb-2">
                     <CalendarDays className="h-5 w-5 text-muted-foreground" />
-                    <FormLabel>Start Date</FormLabel>
+                    <FormLabel>Dates: Start Date</FormLabel>
                   </div>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -296,13 +339,12 @@ export function NewRequestForm() {
                 </FormItem>
               )}
             />
-
             <FormField
               control={form.control}
               name="endDate"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <div className="flex items-center gap-2 mb-2"> {/* Adjusted margin for popover trigger */}
+                  <div className="flex items-center gap-2 mb-2">
                     <CalendarDays className="h-5 w-5 text-muted-foreground" />
                     <FormLabel>End Date</FormLabel>
                   </div>
@@ -341,17 +383,17 @@ export function NewRequestForm() {
             />
           </div>
           
-          <FormField
+           <FormField
             control={form.control}
-            name="cost"
+            name="estimatedLogisticCost"
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-muted-foreground" />
-                  <FormLabel>Estimated Total Cost (USD)</FormLabel>
+                  <PackagePlus className="h-5 w-5 text-muted-foreground" />
+                  <FormLabel>Estimated Logistic Cost (USD - Optional)</FormLabel>
                 </div>
                 <FormControl>
-                  <Input type="number" placeholder="e.g., 500" {...field} min="0" step="0.01" />
+                  <Input type="number" placeholder="e.g., 100" {...field} min="0" step="0.01" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -361,55 +403,95 @@ export function NewRequestForm() {
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             <FormField
               control={form.control}
-              name="mode"
+              name="organiser" // Training Provider
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center gap-2">
-                    <MapPinned className="h-5 w-5 text-muted-foreground" />
-                    <FormLabel>Mode of Training / Location</FormLabel>
+                    <Briefcase className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Training Provider</FormLabel>
                   </div>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a mode/location" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {locationModes.map(value => (
-                        <SelectItem key={value} value={value}>{locationModeDisplayNames[value]}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Input placeholder="e.g., TechSeminars Inc." {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
+             <FormField
               control={form.control}
-              name="programType"
+              name="departmentApprovedBudget"
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center gap-2">
-                    <LayoutList className="h-5 w-5 text-muted-foreground" />
-                    <FormLabel>Type of Program</FormLabel>
+                    <Landmark className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Dep. Approved Budget (USD - Optional)</FormLabel>
                   </div>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select program type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                       {programTypes.map(value => (
-                        <SelectItem key={value} value={value}>{programTypeDisplayNames[value]}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Input type="number" placeholder="e.g., 5000" {...field} min="0" step="0.01" />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
+
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+             <FormField
+              control={form.control}
+              name="venue"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Venue</FormLabel>
+                  </div>
+                  <FormControl>
+                    <Input placeholder="e.g., Online, New York City, Local Training Center" {...field} />
+                  </FormControl>
+                   <FormDescription>
+                    For 'Online' or 'In-House' mode, specify platform or building name.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="departmentBudgetBalance"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center gap-2">
+                    <Banknote className="h-5 w-5 text-muted-foreground" />
+                    <FormLabel>Dep. Budget Balance (USD - Optional)</FormLabel>
+                  </div>
+                  <FormControl>
+                    <Input type="number" placeholder="e.g., 2500" {...field} min="0" step="0.01" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="justification"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <FormLabel>Justification for Training</FormLabel>
+                </div>
+                <FormControl>
+                  <Textarea placeholder="Describe the training benefits and how it aligns with your role/goals..." {...field} rows={4} />
+                </FormControl>
+                <FormDescription>
+                  Clearly state the objectives and expected outcomes (this will be used for Job Relevancy/Career Development sections in L1A).
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <FormField
             control={form.control}
@@ -471,3 +553,4 @@ export function NewRequestForm() {
     </>
   );
 }
+
