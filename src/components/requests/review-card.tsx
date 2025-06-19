@@ -340,7 +340,7 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
         )}
       </CardContent>
       {canTakeAction && (
-        <CardFooter className="flex flex-col sm:flex-row justify-end gap-2 pt-3 border-t mt-auto">
+        <CardFooter className="flex flex-col sm:flex-row sm:flex-wrap justify-end gap-2 pt-3 border-t mt-auto">
           {currentUser?.role !== 'cm' && request.status === 'pending' && (
             <>
               <Button variant="ghost" size="sm" asChild className="w-full sm:w-auto" title="Edit Request">
@@ -406,3 +406,4 @@ function ReviewCardComponent({ request, isReadOnly = false }: ReviewCardProps) {
 }
 
 export const ReviewCard = React.memo(ReviewCardComponent);
+
