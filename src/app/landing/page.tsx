@@ -41,7 +41,7 @@ const faqs = [
 ];
 
 const hrContact = {
-  email: "hr-training@l1aportal.com", // Updated email domain
+  email: "hr-training@l1aportal.com",
   phone: "(555) 123-4567",
   officeHours: "Monday - Friday, 9:00 AM - 5:00 PM (Local Time)",
 };
