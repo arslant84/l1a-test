@@ -10,7 +10,7 @@ export default function NewRequestPage() {
           <h1 className="text-3xl font-bold tracking-tight font-headline">New Training Request</h1>
           <p className="text-muted-foreground">Fill out the form below to submit a new training request for approval.</p>
         </div>
-      <Card className="shadow-lg max-w-3xl mx-auto">
+      <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Training Request Details</CardTitle>
           <CardDescription>Please provide all necessary information for your request.</CardDescription>
