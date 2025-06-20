@@ -130,8 +130,8 @@ export default function SettingsPage() {
       const success = await updateUserAvatarAction(currentUser.id, dataUrl);
       if (success) {
         toast({ title: "Picture Updated", description: "Your profile picture has been changed." });
-        await reloadCurrentUser();
-        setAvatarRefreshTrigger(prev => prev + 1); 
+        await reloadCurrentUser(); // This should fetch the updated user object
+        setAvatarRefreshTrigger(Date.now()); // Force re-render with new key
       } else {
         toast({ variant: "destructive", title: "Update Failed", description: "Could not update picture." });
       }
@@ -194,7 +194,7 @@ export default function SettingsPage() {
             <Form {...profileForm}>
               <form onSubmit={profileForm.handleSubmit(handleProfileSave)} className="space-y-6">
                 <div className="flex flex-col items-center space-y-4">
-                  <Avatar className="h-24 w-24" key={`${currentUser.avatarUrl?.substring(0,30)}-${avatarRefreshTrigger}`}> 
+                  <Avatar className="h-24 w-24" key={`avatar-${currentUser.id}-${avatarRefreshTrigger}`}> 
                     <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} data-ai-hint="profile picture user" />
                     <AvatarFallback className="text-3xl">{getInitials(currentUser.name)}</AvatarFallback>
                   </Avatar>

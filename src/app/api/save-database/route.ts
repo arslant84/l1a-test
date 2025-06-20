@@ -15,7 +15,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Convert the file to a Buffer
     const bytes = await file.arrayBuffer();
     console.log(`[SAVE DATABASE API] Received database file: ${file.name}, size: ${bytes.byteLength} bytes`);
     
@@ -29,8 +28,6 @@ export async function POST(request: Request) {
     
     const buffer = Buffer.from(bytes);
 
-    // Save the file to the public directory
-    // The filename is now derived from the uploaded file's name (e.g., l1a_approve.db or vendors.db)
     const publicDir = join(process.cwd(), 'public');
     const filePath = join(publicDir, file.name); 
     
@@ -46,4 +43,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
