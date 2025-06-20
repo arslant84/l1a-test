@@ -175,7 +175,7 @@ export default function TrainingRequestDetailPage() {
   const isApprovedOrProcessed = request.status === 'approved' && request.currentApprovalStep === 'completed';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full"> {/* Added w-full */}
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight font-headline">Training Request Details</h1>
         <div className="flex gap-2">

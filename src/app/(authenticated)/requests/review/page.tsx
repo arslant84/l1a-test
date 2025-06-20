@@ -143,7 +143,7 @@ export default function ReviewRequestsPage() {
 
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full"> {/* Added w-full */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight font-headline">
             {currentUser.role === 'cm' ? "Process Approved Trainings" : "Review Training Requests"}

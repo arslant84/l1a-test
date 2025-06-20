@@ -11,7 +11,7 @@ import { PanelLeft } from 'lucide-react';
 export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider defaultOpen>
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen w-full"> {/* Added w-full here */}
         <Sidebar className="border-r" collapsible="icon">
           <SidebarHeader className="p-4">
             <Logo textClassName="group-data-[collapsible=icon]:hidden transition-opacity duration-200" iconClassName="group-data-[collapsible=icon]:mx-auto" />
