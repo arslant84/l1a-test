@@ -47,6 +47,7 @@ export default function SettingsPage() {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarRefreshTrigger, setAvatarRefreshTrigger] = useState(0); 
+  const [isUploadingPicture, setIsUploadingPicture] = useState(false);
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -110,38 +111,43 @@ export default function SettingsPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    toast({ title: "Processing Picture Change (Simulation)", description: `File "${file.name}" was selected. Avatar will update with a new placeholder.` });
+    if (file.size > 2 * 1024 * 1024) { // 2MB limit for Data URI practicality
+        toast({
+            variant: "destructive",
+            title: "File Too Large",
+            description: "Please select an image smaller than 2MB.",
+        });
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ""; // Reset file input
+        }
+        return;
+    }
+    setIsUploadingPicture(true);
 
-    const baseUrl = currentUser.avatarUrl?.split('?')[0] || '';
-    const match = baseUrl.match(/placehold\.co\/(\d+)x\1\.png/);
-    let currentSize = '0'; 
-
-    if (match && match[1]) {
-      currentSize = match[1];
-    }
-
-    let nextSize;
-    if (currentSize === '100') {
-      nextSize = '150';
-    } else if (currentSize === '150') {
-      nextSize = '200';
-    } else { 
-      nextSize = '100';
-    }
-    
-    const newAvatarUrl = `https://placehold.co/${nextSize}x${nextSize}.png?t=${Date.now()}`;
-    
-    const success = await updateUserAvatarAction(currentUser.id, newAvatarUrl);
-    if (success) {
-      toast({ title: "Picture Updated", description: "Your profile picture has been changed (using a new placeholder)." });
-      await reloadCurrentUser();
-      setAvatarRefreshTrigger(prev => prev + 1); 
-    } else {
-      toast({ variant: "destructive", title: "Update Failed", description: "Could not update picture." });
-    }
-    if(fileInputRef.current) {
-        fileInputRef.current.value = ""; 
-    }
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const dataUrl = reader.result as string;
+      const success = await updateUserAvatarAction(currentUser.id, dataUrl);
+      if (success) {
+        toast({ title: "Picture Updated", description: "Your profile picture has been changed." });
+        await reloadCurrentUser();
+        setAvatarRefreshTrigger(prev => prev + 1); 
+      } else {
+        toast({ variant: "destructive", title: "Update Failed", description: "Could not update picture." });
+      }
+      setIsUploadingPicture(false);
+      if(fileInputRef.current) {
+          fileInputRef.current.value = ""; 
+      }
+    };
+    reader.onerror = () => {
+        toast({ variant: "destructive", title: "File Read Error", description: "Could not read the selected image." });
+        setIsUploadingPicture(false);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    };
+    reader.readAsDataURL(file);
   };
 
 
@@ -188,7 +194,7 @@ export default function SettingsPage() {
             <Form {...profileForm}>
               <form onSubmit={profileForm.handleSubmit(handleProfileSave)} className="space-y-6">
                 <div className="flex flex-col items-center space-y-4">
-                  <Avatar className="h-24 w-24" key={`${currentUser.avatarUrl}-${avatarRefreshTrigger}`}> 
+                  <Avatar className="h-24 w-24" key={`${currentUser.avatarUrl?.substring(0,30)}-${avatarRefreshTrigger}`}> 
                     <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} data-ai-hint="profile picture user" />
                     <AvatarFallback className="text-3xl">{getInitials(currentUser.name)}</AvatarFallback>
                   </Avatar>
@@ -196,11 +202,12 @@ export default function SettingsPage() {
                     type="file" 
                     ref={fileInputRef} 
                     onChange={handlePictureFileSelected} 
-                    accept="image/*" 
+                    accept="image/png, image/jpeg, image/gif, image/webp" 
                     className="hidden" 
                   />
-                  <Button variant="outline" size="sm" type="button" onClick={triggerFileInput}>
-                    <UploadCloud className="mr-2 h-4 w-4" /> Change Picture
+                  <Button variant="outline" size="sm" type="button" onClick={triggerFileInput} disabled={isUploadingPicture}>
+                    {isUploadingPicture ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
+                     Change Picture
                   </Button>
                 </div>
                 <FormField
