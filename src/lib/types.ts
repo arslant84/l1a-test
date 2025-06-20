@@ -1,4 +1,5 @@
 
+
 export interface Employee {
   id: string;
   name: string;
@@ -94,5 +95,28 @@ export interface VendorInputFields {
   overallFinancialEvaluationResult?: string | null;
   // Add any other fields that are part of VENDOR_COLUMNS in database.ts
   [key: string]: any; // Allow other properties if needed
+}
+
+export type AppNotificationType = 
+  | 'request_submitted'
+  | 'request_approved_step' // Approved at a step, pending next
+  | 'request_fully_approved' // Final approval, now pending CM
+  | 'request_rejected'
+  | 'request_cancelled'
+  | 'request_processed_cm' // CM has processed it
+  | 'request_updated'      // Details of a request were modified
+  | 'action_required';     // Generic: your action is needed
+
+export interface AppNotification {
+  id: string;
+  userId: string; // The user who should see this notification
+  title: string;
+  description: string;
+  timestamp: Date;
+  isRead: boolean;
+  link?: string; // e.g., to the specific training request
+  type: AppNotificationType;
+  relatedRequestId?: string; // Optional: ID of the training request
+  actorName?: string; // Optional: Name of the user who triggered the notification
 }
 

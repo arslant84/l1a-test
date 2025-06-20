@@ -1,12 +1,12 @@
+
 // This file runs on the client-side.
-import { getDb, convertSqljsResponse, parseEmployee, parseTrainingRequest, saveDatabaseChanges } from './sqljs-db';
-import type { Employee, TrainingRequest, ApprovalAction, TrainingRequestStatus, CurrentApprovalStep, ApprovalStepRole } from '@/lib/types';
-import type { NewRequestFormValues } from '@/components/requests/new-request-form'; // Assuming this type is exported
+import { getDb, convertSqljsResponse, parseEmployee, parseTrainingRequest, saveDatabaseChanges, addNotificationToDb, getNotificationsFromDb, markNotificationAsReadInDb, markAllNotificationsAsReadInDb } from './sqljs-db';
+import type { Employee, TrainingRequest, ApprovalAction, TrainingRequestStatus, CurrentApprovalStep, ApprovalStepRole, AppNotification, AppNotificationType } from '@/lib/types';
+import type { NewRequestFormValues } from '@/components/requests/new-request-form';
 import { sendEmailNotification } from './email-service';
-import { generateRequestLink } from './utils'; // Updated import
+import { generateRequestLink } from './utils'; 
 import { format } from 'date-fns';
 
-// Helper: Approval Step Display Names (for email content)
 const approvalStepRoleDisplay: Record<ApprovalStepRole, string> = {
   supervisor: 'Supervisor',
   thr: 'THR',
@@ -14,25 +14,47 @@ const approvalStepRoleDisplay: Record<ApprovalStepRole, string> = {
   cm: 'Capability Management'
 };
 
-// Helper function to get a single employee by ID
 async function getEmployeeById(userId: string): Promise<Employee | null> {
-  const allUsers = await fetchAllUsersAction(); // Efficient if users are already cached in AuthProvider, but direct fetch for isolated logic
+  const allUsers = await fetchAllUsersAction(); 
   return allUsers.find(u => u.id === userId) || null;
 }
 
-// Helper function to get users by role
 async function getUsersByRole(role: Employee['role']): Promise<Employee[]> {
   const allUsers = await fetchAllUsersAction();
   return allUsers.filter(u => u.role === role);
 }
 
-// Helper function to get supervisor for an employee
 async function getSupervisorForEmployee(employeeId: string): Promise<Employee | null> {
   const employee = await getEmployeeById(employeeId);
   if (employee && employee.managerId) {
     return getEmployeeById(employee.managerId);
   }
   return null;
+}
+
+
+// --- Notification Helper ---
+async function createAndSaveAppNotification(
+  userId: string,
+  title: string,
+  description: string,
+  type: AppNotificationType,
+  link?: string,
+  relatedRequestId?: string,
+  actorName?: string
+) {
+  const user = await getEmployeeById(userId);
+  if (user && user.prefersInAppNotifications) {
+    await addNotificationToDb({
+      userId,
+      title,
+      description,
+      type,
+      link,
+      relatedRequestId,
+      actorName
+    });
+  }
 }
 
 
@@ -69,7 +91,7 @@ export async function fetchAllTrainingRequestsAction(): Promise<TrainingRequest[
 export async function addTrainingRequestAction(
   requestData: Omit<TrainingRequest, 'id' | 'employeeId' | 'employeeName' | 'status' | 'submittedDate' | 'lastUpdated' | 'currentApprovalStep' | 'approvalChain' | 'cancelledByUserId' | 'cancelledDate' | 'cancellationReason'>,
   currentUser: Employee
-): Promise<string | false> { // Returns new request ID or false
+): Promise<string | false> { 
   if (!currentUser) return false;
   const db = await getDb();
   const newRequestId = 'req' + Date.now() + Math.random().toString(36).substring(2, 7);
@@ -104,19 +126,29 @@ export async function addTrainingRequestAction(
         requestData.departmentBudgetBalance !== undefined ? requestData.departmentBudgetBalance : null,
       ]
     );
-    await saveDatabaseChanges(); 
-
-    // --- Email Notification: To Supervisor ---
+    
     const supervisor = await getSupervisorForEmployee(currentUser.id);
-    if (supervisor && supervisor.prefersEmailNotifications) {
-      await sendEmailNotification({
-        to: supervisor.email,
-        recipientName: supervisor.name,
-        subject: `New Training Request Awaiting Your Approval: "${requestData.trainingTitle}"`,
-        body: `Hello ${supervisor.name},\n\nA new training request titled "${requestData.trainingTitle}" submitted by ${currentUser.name} is awaiting your approval.\n\nTraining Details:\n- Title: ${requestData.trainingTitle}\n- Dates: ${format(requestData.startDate, 'PPP')} to ${format(requestData.endDate, 'PPP')}\n- Cost: $${requestData.cost.toFixed(2)}\n\nPlease review it here: ${generateRequestLink(newRequestId)}\n\nThank you.`
-      });
+    if (supervisor) {
+      if (supervisor.prefersEmailNotifications) {
+        await sendEmailNotification({
+          to: supervisor.email,
+          recipientName: supervisor.name,
+          subject: `New Training Request Awaiting Your Approval: "${requestData.trainingTitle}"`,
+          body: `Hello ${supervisor.name},\n\nA new training request titled "${requestData.trainingTitle}" submitted by ${currentUser.name} is awaiting your approval.\n\nTraining Details:\n- Title: ${requestData.trainingTitle}\n- Dates: ${format(requestData.startDate, 'PPP')} to ${format(requestData.endDate, 'PPP')}\n- Cost: $${requestData.cost.toFixed(2)}\n\nPlease review it here: ${generateRequestLink(newRequestId)}\n\nThank you.`
+        });
+      }
+      await createAndSaveAppNotification(
+        supervisor.id,
+        `New Request: ${requestData.trainingTitle}`,
+        `Submitted by ${currentUser.name}. Please review.`,
+        'action_required',
+        generateRequestLink(newRequestId),
+        newRequestId,
+        currentUser.name
+      );
     }
     
+    await saveDatabaseChanges(); 
     return newRequestId;
   } catch (error) {
     console.error("Failed to add training request (sql.js):", error);
@@ -143,7 +175,7 @@ export async function updateTrainingRequestDetailsAction(
     const originalRequestBeforeUpdate = (await fetchAllTrainingRequestsAction()).find(r => r.id === requestId);
     if (!originalRequestBeforeUpdate) {
         console.error("Cannot send update notification: Original request not found.");
-        return false; // Or handle as appropriate
+        return false;
     }
 
     db.run(
@@ -152,7 +184,7 @@ export async function updateTrainingRequestDetailsAction(
         startDate = ?, endDate = ?, cost = ?, mode = ?, programType = ?, 
         previousRelevantTraining = ?, supportingDocuments = ?, 
         costCenter = ?, estimatedLogisticCost = ?, departmentApprovedBudget = ?, departmentBudgetBalance = ?,
-        lastUpdated = ? 
+        lastUpdated = ?, status = ?, currentApprovalStep = ?
       WHERE id = ?`,
       [
         newData.trainingTitle, newData.justification, newData.organiser, newData.venue,
@@ -163,48 +195,56 @@ export async function updateTrainingRequestDetailsAction(
         newData.departmentApprovedBudget !== undefined ? newData.departmentApprovedBudget : null,
         newData.departmentBudgetBalance !== undefined ? newData.departmentBudgetBalance : null,
         new Date().toISOString(),
+        'pending', // Reset status to pending
+        'supervisor', // Reset approval step to supervisor
         requestId
       ]
     );
-    await saveDatabaseChanges();
-
-    // --- Email Notification: Request Modified ---
+    
     const requester = await getEmployeeById(originalRequestBeforeUpdate.employeeId);
     const editor = await getEmployeeById(actingUserId);
 
     if (editor && requester) {
-        if (actingUserId === originalRequestBeforeUpdate.employeeId) { // Requester edited their own request
-            if (originalRequestBeforeUpdate.status === 'pending' && originalRequestBeforeUpdate.currentApprovalStep !== 'completed') {
-                let currentApprovers: Employee[] = [];
-                if (originalRequestBeforeUpdate.currentApprovalStep === 'supervisor') {
-                    const supervisor = await getSupervisorForEmployee(originalRequestBeforeUpdate.employeeId);
-                    if (supervisor) currentApprovers.push(supervisor);
-                } else {
-                    currentApprovers = await getUsersByRole(originalRequestBeforeUpdate.currentApprovalStep as ApprovalStepRole);
-                }
+        const notificationTitle = `Request Updated: ${newData.trainingTitle}`;
+        const notificationLink = generateRequestLink(requestId);
 
-                for (const approver of currentApprovers) {
-                    if (approver.prefersEmailNotifications) {
-                        await sendEmailNotification({
-                            to: approver.email,
-                            recipientName: approver.name,
-                            subject: `Training Request Updated: "${newData.trainingTitle}" by ${editor.name}`,
-                            body: `Hello ${approver.name},\n\nThe training request "${newData.trainingTitle}" for ${requester.name}, which you are reviewing, has been updated by the requester.\n\nPlease review the changes: ${generateRequestLink(requestId)}\n\nThank you.`
-                        });
-                    }
+        if (actingUserId === originalRequestBeforeUpdate.employeeId) { // Requester edited
+            const supervisor = await getSupervisorForEmployee(requester.id);
+            if (supervisor) {
+                if (supervisor.prefersEmailNotifications) {
+                    await sendEmailNotification({
+                        to: supervisor.email, recipientName: supervisor.name,
+                        subject: notificationTitle,
+                        body: `Hello ${supervisor.name},\n\nThe training request "${newData.trainingTitle}" for ${requester.name}, has been updated by the requester and requires your review.\n\nPlease review the changes: ${notificationLink}\n\nThank you.`
+                    });
                 }
+                await createAndSaveAppNotification(supervisor.id, notificationTitle, `Request by ${requester.name} was updated and needs your review.`, 'action_required', notificationLink, requestId, requester.name);
             }
-        } else { // An approver edited the request
+        } else { // Approver edited
             if (requester.prefersEmailNotifications) {
                  await sendEmailNotification({
-                    to: requester.email,
-                    recipientName: requester.name,
-                    subject: `Training Request Modified: "${newData.trainingTitle}" by ${editor.name}`,
-                    body: `Hello ${requester.name},\n\nYour training request "${newData.trainingTitle}" has been modified by ${editor.name} (${approvalStepRoleDisplay[editor.role as ApprovalStepRole] || editor.role}).\n\nPlease review the changes: ${generateRequestLink(requestId)}\n\nThank you.`
+                    to: requester.email, recipientName: requester.name,
+                    subject: notificationTitle,
+                    body: `Hello ${requester.name},\n\nYour training request "${newData.trainingTitle}" has been modified by ${editor.name} (${approvalStepRoleDisplay[editor.role as ApprovalStepRole] || editor.role}). It has been reset to 'Pending Supervisor' approval.\n\nPlease review the changes: ${notificationLink}\n\nThank you.`
                 });
+            }
+            await createAndSaveAppNotification(requester.id, notificationTitle, `Your request was modified by ${editor.name}.`, 'request_updated', notificationLink, requestId, editor.name);
+            
+            // Also notify supervisor that it's back in their queue
+            const supervisor = await getSupervisorForEmployee(requester.id);
+             if (supervisor && supervisor.id !== editor.id) { // Don't notify supervisor if they are the editor
+                if (supervisor.prefersEmailNotifications) {
+                     await sendEmailNotification({
+                        to: supervisor.email, recipientName: supervisor.name,
+                        subject: `Request Needs Review: ${newData.trainingTitle}`,
+                        body: `Hello ${supervisor.name},\n\nThe training request "${newData.trainingTitle}" for ${requester.name} was modified by ${editor.name} and is now awaiting your approval.\n\nPlease review it: ${notificationLink}\n\nThank you.`
+                    });
+                }
+                await createAndSaveAppNotification(supervisor.id, `Request Needs Review: ${newData.trainingTitle}`, `Modified by ${editor.name}, awaiting your approval for ${requester.name}.`, 'action_required', notificationLink, requestId, editor.name);
             }
         }
     }
+    await saveDatabaseChanges();
     return true;
   } catch (error) {
     console.error("Failed to update training request details (sql.js):", error);
@@ -217,7 +257,7 @@ export async function updateRequestStatusAction(
   requestId: string,
   decision: 'approved' | 'rejected',
   notes: string | undefined,
-  currentUser: Employee // The approver taking action
+  currentUser: Employee 
 ): Promise<boolean> {
   if (!currentUser) return false;
   const db = await getDb();
@@ -252,6 +292,7 @@ export async function updateRequestStatusAction(
   const updatedApprovalChain = [...parsedCurrentRequest.approvalChain, newAction];
   let nextApprovalStep: CurrentApprovalStep = parsedCurrentRequest.currentApprovalStep;
   let finalStatus: TrainingRequestStatus = parsedCurrentRequest.status;
+  let notificationTypeForRequester: AppNotificationType = decision === 'approved' ? 'request_approved_step' : 'request_rejected';
 
   if (decision === 'rejected') {
     finalStatus = 'rejected';
@@ -268,11 +309,13 @@ export async function updateRequestStatusAction(
         } else {
           finalStatus = 'approved';
           nextApprovalStep = 'cm'; 
+          notificationTypeForRequester = 'request_fully_approved';
         }
         break;
       case 'ceo':
         finalStatus = 'approved';
         nextApprovalStep = 'cm'; 
+        notificationTypeForRequester = 'request_fully_approved';
         break;
     }
   }
@@ -288,56 +331,50 @@ export async function updateRequestStatusAction(
         requestId
       ]
     );
-    await saveDatabaseChanges();
-
-    // --- Email Notifications ---
+    
     const requester = await getEmployeeById(parsedCurrentRequest.employeeId);
-    const approver = currentUser; // The user who just took action
+    const approver = currentUser; 
+    const requestLink = generateRequestLink(requestId);
 
-    // 1. Notify Requester about the decision
-    if (requester && requester.prefersEmailNotifications) {
-      await sendEmailNotification({
-        to: requester.email,
-        recipientName: requester.name,
-        subject: `Training Request Update: "${parsedCurrentRequest.trainingTitle}"`,
-        body: `Hello ${requester.name},\n\nYour training request for "${parsedCurrentRequest.trainingTitle}" has been ${decision} by ${approver.name} (${approvalStepRoleDisplay[newAction.stepRole]}).\n\nNotes: ${notes || 'N/A'}\n\nView request: ${generateRequestLink(requestId)}\n\nThank you.`
-      });
+    if (requester) {
+      const emailSubject = `Training Request Update: "${parsedCurrentRequest.trainingTitle}"`;
+      const emailBody = `Hello ${requester.name},\n\nYour training request for "${parsedCurrentRequest.trainingTitle}" has been ${decision} by ${approver.name} (${approvalStepRoleDisplay[newAction.stepRole]}).\n\nNotes: ${notes || 'N/A'}\n\nView request: ${requestLink}\n\nThank you.`;
+      if (requester.prefersEmailNotifications) {
+        await sendEmailNotification({ to: requester.email, recipientName: requester.name, subject: emailSubject, body: emailBody });
+      }
+      await createAndSaveAppNotification(requester.id, emailSubject, `Your request was ${decision} by ${approver.name}. Notes: ${notes || 'N/A'}`, notificationTypeForRequester, requestLink, requestId, approver.name);
     }
 
-    // 2. Notify Next Approver (if applicable)
     if (finalStatus === 'pending' && nextApprovalStep !== 'completed' && nextApprovalStep !== parsedCurrentRequest.currentApprovalStep) {
       const nextApprovers = await getUsersByRole(nextApprovalStep as ApprovalStepRole);
       for (const nextAppr of nextApprovers) {
-        if (nextAppr.prefersEmailNotifications) {
-          // Additional check: Ensure supervisor isn't notified if they are the next step AND also the current user (e.g. self-assigned task after a revision scenario, though rare)
-          // For THR, CEO, CM, this is simpler.
-          if (nextApprovalStep === 'supervisor') {
-             const employeeBeingSupervised = await getEmployeeById(parsedCurrentRequest.employeeId);
-             if (employeeBeingSupervised?.managerId !== nextAppr.id) continue; // Only notify the direct supervisor
-          }
+        let shouldNotify = true;
+        if (nextApprovalStep === 'supervisor') {
+           const employeeBeingSupervised = await getEmployeeById(parsedCurrentRequest.employeeId);
+           if (employeeBeingSupervised?.managerId !== nextAppr.id) shouldNotify = false;
+        }
 
-          await sendEmailNotification({
-            to: nextAppr.email,
-            recipientName: nextAppr.name,
-            subject: `Action Required: Training Request for ${parsedCurrentRequest.employeeName}`,
-            body: `Hello ${nextAppr.name},\n\nThe training request "${parsedCurrentRequest.trainingTitle}" from ${parsedCurrentRequest.employeeName} is now awaiting your approval as ${approvalStepRoleDisplay[nextApprovalStep as ApprovalStepRole]}.\n\nPlease review it here: ${generateRequestLink(requestId)}\n\nThank you.`
-          });
+        if (shouldNotify) {
+            const emailSubjectNext = `Action Required: Training Request for ${parsedCurrentRequest.employeeName}`;
+            const emailBodyNext = `Hello ${nextAppr.name},\n\nThe training request "${parsedCurrentRequest.trainingTitle}" from ${parsedCurrentRequest.employeeName} is now awaiting your approval as ${approvalStepRoleDisplay[nextApprovalStep as ApprovalStepRole]}.\n\nPlease review it here: ${requestLink}\n\nThank you.`;
+            if (nextAppr.prefersEmailNotifications) {
+                await sendEmailNotification({ to: nextAppr.email, recipientName: nextAppr.name, subject: emailSubjectNext, body: emailBodyNext });
+            }
+            await createAndSaveAppNotification(nextAppr.id, emailSubjectNext, `Request from ${parsedCurrentRequest.employeeName} for "${parsedCurrentRequest.trainingTitle}" needs your approval.`, 'action_required', requestLink, requestId, parsedCurrentRequest.employeeName);
         }
       }
-    } else if (finalStatus === 'approved' && nextApprovalStep === 'cm') { // Notify CM when it first becomes their turn
+    } else if (finalStatus === 'approved' && nextApprovalStep === 'cm') { 
         const cmUsers = await getUsersByRole('cm');
         for (const cmUser of cmUsers) {
+            const emailSubjectCM = `Action Required: Approved Training for ${parsedCurrentRequest.employeeName}`;
+            const emailBodyCM = `Hello ${cmUser.name},\n\nThe training request "${parsedCurrentRequest.trainingTitle}" from ${parsedCurrentRequest.employeeName} has been fully approved and is awaiting your processing as Capability Management.\n\nPlease process it here: ${requestLink}\n\nThank you.`;
             if (cmUser.prefersEmailNotifications) {
-                 await sendEmailNotification({
-                    to: cmUser.email,
-                    recipientName: cmUser.name,
-                    subject: `Action Required: Approved Training for ${parsedCurrentRequest.employeeName}`,
-                    body: `Hello ${cmUser.name},\n\nThe training request "${parsedCurrentRequest.trainingTitle}" from ${parsedCurrentRequest.employeeName} has been fully approved and is awaiting your processing as Capability Management.\n\nPlease process it here: ${generateRequestLink(requestId)}\n\nThank you.`
-                });
+                 await sendEmailNotification({ to: cmUser.email, recipientName: cmUser.name, subject: emailSubjectCM, body: emailBodyCM });
             }
+            await createAndSaveAppNotification(cmUser.id, emailSubjectCM, `Request for ${parsedCurrentRequest.employeeName} (${parsedCurrentRequest.trainingTitle}) is fully approved and pending your processing.`, 'action_required', requestLink, requestId, parsedCurrentRequest.employeeName);
         }
     }
-
+    await saveDatabaseChanges();
     return true;
   } catch (error)
   {
@@ -349,7 +386,7 @@ export async function updateRequestStatusAction(
 export async function markRequestAsProcessedByCMAction(
   requestId: string,
   notes: string | undefined,
-  currentUser: Employee // This is the CM user
+  currentUser: Employee 
 ): Promise<boolean> {
   if (!currentUser || currentUser.role !== 'cm') return false;
   const db = await getDb();
@@ -390,19 +427,18 @@ export async function markRequestAsProcessedByCMAction(
         requestId
       ]
     );
-    await saveDatabaseChanges();
-
-    // --- Email Notification: To Requester ---
+    
     const requester = await getEmployeeById(parsedCurrentRequest.employeeId);
-    if (requester && requester.prefersEmailNotifications) {
-      await sendEmailNotification({
-        to: requester.email,
-        recipientName: requester.name,
-        subject: `Training Request Processed: "${parsedCurrentRequest.trainingTitle}"`,
-        body: `Hello ${requester.name},\n\nYour training request for "${parsedCurrentRequest.trainingTitle}" has been processed by Capability Management (${currentUser.name}).\n\nNotes: ${notes || 'N/A'}\n\nView request: ${generateRequestLink(requestId)}\n\nThank you.`
-      });
+    const requestLink = generateRequestLink(requestId);
+    if (requester) {
+      const emailSubject = `Training Request Processed: "${parsedCurrentRequest.trainingTitle}"`;
+      const emailBody = `Hello ${requester.name},\n\nYour training request for "${parsedCurrentRequest.trainingTitle}" has been processed by Capability Management (${currentUser.name}).\n\nNotes: ${notes || 'N/A'}\n\nView request: ${requestLink}\n\nThank you.`;
+      if (requester.prefersEmailNotifications) {
+        await sendEmailNotification({ to: requester.email, recipientName: requester.name, subject: emailSubject, body: emailBody });
+      }
+      await createAndSaveAppNotification(requester.id, emailSubject, `CM (${currentUser.name}) processed your request. Notes: ${notes || 'N/A'}`, 'request_processed_cm', requestLink, requestId, currentUser.name);
     }
-
+    await saveDatabaseChanges();
     return true;
   } catch (error) {
     console.error("Failed to mark request as processed by CM (sql.js):", error);
@@ -429,29 +465,28 @@ export async function cancelTrainingRequestAction(
       'UPDATE training_requests SET status = ?, currentApprovalStep = ?, cancelledByUserId = ?, cancelledDate = ?, cancellationReason = ?, lastUpdated = ? WHERE id = ?',
       [
         'cancelled',
-        'completed', // Mark as completed as it's a final state.
+        'completed', 
         cancellingUserId,
         cancelledDate,
         cancellationReason || null,
-        cancelledDate, // lastUpdated is also cancellation date
+        cancelledDate, 
         requestId
       ]
     );
-    await saveDatabaseChanges();
-
-    // --- Email Notification: To Requester ---
+    
     const requester = await getEmployeeById(requestToCancel.employeeId);
     const canceller = await getEmployeeById(cancellingUserId);
+    const requestLink = generateRequestLink(requestId);
 
-    if (requester && requester.prefersEmailNotifications) {
-      await sendEmailNotification({
-        to: requester.email,
-        recipientName: requester.name,
-        subject: `Training Request Cancelled: "${requestToCancel.trainingTitle}"`,
-        body: `Hello ${requester.name},\n\nYour training request for "${requestToCancel.trainingTitle}" has been cancelled ${canceller ? `by ${canceller.name}` : ''}.\n\nReason: ${cancellationReason || 'N/A'}\n\nView request: ${generateRequestLink(requestId)}\n\nThank you.`
-      });
+    if (requester && canceller) {
+      const emailSubject = `Training Request Cancelled: "${requestToCancel.trainingTitle}"`;
+      const emailBody = `Hello ${requester.name},\n\nYour training request for "${requestToCancel.trainingTitle}" has been cancelled ${canceller ? `by ${canceller.name}` : ''}.\n\nReason: ${cancellationReason || 'N/A'}\n\nView request: ${requestLink}\n\nThank you.`;
+      if (requester.prefersEmailNotifications) {
+        await sendEmailNotification({ to: requester.email, recipientName: requester.name, subject: emailSubject, body: emailBody });
+      }
+      await createAndSaveAppNotification(requester.id, emailSubject, `Request cancelled ${canceller ? `by ${canceller.name}` : ''}. Reason: ${cancellationReason || 'N/A'}`, 'request_cancelled', requestLink, requestId, canceller.name);
     }
-
+    await saveDatabaseChanges();
     return true;
   } catch (error) {
     console.error("Failed to cancel training request (sql.js):", error);
@@ -473,7 +508,6 @@ export async function updateUserProfileNameAction(userId: string, newName: strin
 
 export async function updateUserAvatarAction(userId: string, avatarUrl: string): Promise<boolean> {
   const db = await getDb();
-  // Log only the start of the Data URI to keep console output manageable
   console.log(`[CDA] Attempting to update avatar for user ${userId} to ${avatarUrl.substring(0, 30)}...`);
   try {
     const stmt = db.prepare('UPDATE employees SET avatarUrl = ? WHERE id = ?');
@@ -514,6 +548,38 @@ export async function updateUserNotificationPreferenceAction(
     return true;
   } catch (error) {
     console.error('Failed to update ' + preferenceType + ' notification preference for user ' + userId + ' (sql.js):', error);
+    return false;
+  }
+}
+
+// --- App Notification Actions ---
+export async function fetchUserNotificationsAction(userId: string): Promise<AppNotification[]> {
+  try {
+    return await getNotificationsFromDb(userId);
+  } catch (error) {
+    console.error("Failed to fetch user notifications:", error);
+    return [];
+  }
+}
+
+export async function markAppNotificationAsReadAction(notificationId: string, userId: string): Promise<boolean> {
+  try {
+    const success = await markNotificationAsReadInDb(notificationId, userId);
+    if (success) await saveDatabaseChanges();
+    return success;
+  } catch (error) {
+    console.error("Failed to mark notification as read:", error);
+    return false;
+  }
+}
+
+export async function markAllAppNotificationsAsReadAction(userId: string): Promise<boolean> {
+  try {
+    const success = await markAllNotificationsAsReadInDb(userId);
+    if (success) await saveDatabaseChanges();
+    return success;
+  } catch (error) {
+    console.error("Failed to mark all notifications as read:", error);
     return false;
   }
 }
